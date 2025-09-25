@@ -16,9 +16,9 @@ const refreshTokenSchema = new mongoose.Schema({
     }
 });
 
-// Static method to create refresh token
+// Static method to create a refresh token
 refreshTokenSchema.statics.createRefreshToken = async function (userId, token) {
-    const expiresIn = 30 * 24 * 60 * 60 * 1000; // Example: 30 days
+    const expiresIn = parseInt(process.env.REFRESH_TOKEN_EXPIRES) * 1000 || 30 * 24 * 60 * 60 * 1000; // fallback 30 days
     const expiresAt = new Date(Date.now() + expiresIn);
 
     const refreshToken = await this.create({
@@ -28,6 +28,15 @@ refreshTokenSchema.statics.createRefreshToken = async function (userId, token) {
     });
 
     return refreshToken;
+};
+
+// Static method to find a valid refresh token
+refreshTokenSchema.statics.findValidToken = async function (userId, token) {
+    return this.findOne({
+        user: userId,
+        token,
+        expiresAt: { $gt: new Date() } // only return if not expired
+    });
 };
 
 const RefreshToken = mongoose.model('RefreshToken', refreshTokenSchema);
