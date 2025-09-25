@@ -20,13 +20,15 @@ const app = express();
 
 // Enable CORS with credentials
 app.use(cors({
-    origin: [
-        'http://localhost:3000',
-        'https://frontend-kolotemari.vercel.app/'
-    ],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true // Necessary to include cookies
+  origin: function(origin, callback){
+    if (!origin) return callback(null, true); // allow non-browser requests
+    if (origin.includes('localhost:3000') || origin.endsWith('.vercel.app')) {
+      callback(null, true)
+    } else {
+      callback(new Error('Not allowed by CORS'))
+    }
+  },
+  credentials: true
 }));
 
 // Middleware
