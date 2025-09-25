@@ -152,6 +152,33 @@ exports.login = asyncErrorHandler(async (req, res, next) => {
 // Middleware to protect routes and authenticate users based on JWT in cookies
 exports.protect = asyncErrorHandler(async (req, res, next) => {
     const token = req.cookies.jwt; // Get the token from the cookie
+    
+    if (!token) {
+        return next(new CustomErr('You are not logged in', 401));
+    }
+
+    try {
+        const decodedToken = await util.promisify(jwt.verify)(token, process.env.SECRET_STR);
+        
+        const user = await User.findById(decodedToken.id);
+        if (!user) {
+            return next(new CustomErr('The user no longer exists with this token', 401));
+        }
+
+        const isPasswordChanged = await user.isPasswordChanged(decodedToken.iat);
+        if (isPasswordChanged) {
+            return next(new CustomErr('The password was changed recently. Please log in again!', 401));
+        }
+
+        req.user = user; // Grant access
+        return next();
+
+    } catch (error) {
+        if (error.name === 'TokenExpiredError') {
+            return refreshAccessToken(req, res, next);
+        }
+        return next(new CustomErr('Authentication failed. Please log in again.', 401));
+    }
 
 });
 
