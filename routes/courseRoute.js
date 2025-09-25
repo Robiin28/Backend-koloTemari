@@ -6,7 +6,7 @@ const router = express.Router({ mergeParams: true });
 router.route('/')
     .get(courseController.getAllCourses)
 
-    router.use(authController.protect);  
+    // router.use(authController.protect);  
 router.route('/')   
     .post(
        authController.restrictTo('instructor', 'admin'),
