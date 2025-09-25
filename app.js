@@ -23,14 +23,14 @@ app.use(cors({
   origin: function(origin, callback){
     if (!origin) return callback(null, true); // allow non-browser requests
     if (origin.includes('localhost:3000') || origin.endsWith('.vercel.app')) {
-      callback(null, true)
+      callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'))
+      callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true
+  credentials: true // allow cookies
 }));
-
+app.use(cookieParser());
 // Middleware
 app.use(express.json());
 app.use(morgan('dev'));
