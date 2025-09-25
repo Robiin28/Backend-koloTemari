@@ -34,7 +34,7 @@ const createSendResponse = (user, statusCode, res) => {
         maxAge: process.env.LOGIN_EXPIRES * 1000, // Convert to milliseconds
         httpOnly: true, // Cookie accessible only by the web server
         secure: process.env.NODE_ENV === 'production', // Send only via HTTPS in production
-        sameSite: 'strict', // Prevent CSRF attacks
+        sameSite: 'none', // Changed from 'strict' to 'none' for cross-domain
     };
 
     res.cookie('jwt', token, cookieOptions); // Set the JWT in a cookie
@@ -205,7 +205,7 @@ const refreshAccessToken = async (req, res, next) => {
             maxAge: process.env.LOGIN_EXPIRES * 1000,
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            sameSite: 'none', // Changed for deployment
         });
 
         req.user = user; // Grant access
@@ -284,15 +284,17 @@ exports.resetPassword = asyncErrorHandler(async (req, res, next) => {
 // Logout handler
 exports.logout = asyncErrorHandler(async (req, res, next) => {
     res.cookie('jwt', 'logout', {
-        expires: new Date(Date.now() + 1000), // Set the expiration date to the past
+        expires: new Date(Date.now() + 1000),
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
+        sameSite: 'none',
     });
 
     res.cookie('refreshToken', 'logout', {
-        expires: new Date(Date.now() + 1000), // Set the expiration date to the past
+        expires: new Date(Date.now() + 1000),
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
+        sameSite: 'none',
     });
 
     res.status(200).json({
@@ -310,9 +312,10 @@ exports.getMe = asyncErrorHandler(async (req, res, next) => {
         },
     });
 });
-// Function to refresh the access token
+
+// Refresh token route
 exports.refreshToken = asyncErrorHandler(async (req, res, next) => {
-    const refreshToken = req.cookies.refreshToken; // Get the refresh token from cookies
+    const refreshToken = req.cookies.refreshToken;
 
     if (!refreshToken) {
         return next(new CustomErr('You are not logged in. Please log in again.', 401));
@@ -326,16 +329,15 @@ exports.refreshToken = asyncErrorHandler(async (req, res, next) => {
             return next(new CustomErr('User no longer exists', 401));
         }
 
-        // Issue a new access token
         const newAccessToken = signToken(user._id);
         res.cookie('jwt', newAccessToken, {
             maxAge: process.env.LOGIN_EXPIRES * 1000,
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            sameSite: 'none',
         });
 
-        req.user = user; // Grant access
+        req.user = user;
         return res.status(200).json({
             status: 'success',
             token: newAccessToken,
@@ -344,15 +346,15 @@ exports.refreshToken = asyncErrorHandler(async (req, res, next) => {
         return next(new CustomErr('Refresh token invalid or expired. Please log in again.', 401));
     }
 });
+
 // Check authentication status
 exports.checkAuth = asyncErrorHandler(async (req, res, next) => {
-    // If the user object is present in the request, they are authenticated
     if (!req.user) {
         return next(new CustomErr('You are not logged in', 401));
     }
 
     res.status(200).json({
         status: 'success',
-        user: req.user, // Return user data
+        user: req.user,
     });
 });
