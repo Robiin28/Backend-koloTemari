@@ -34,7 +34,7 @@ const createSendResponse = async (user, statusCode, res) => {
         maxAge: process.env.LOGIN_EXPIRES * 1000,
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'none',
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     };
 
     res.cookie('jwt', token, cookieOptions);
