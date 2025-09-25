@@ -5,7 +5,7 @@ const authController = require('../controller/authController');
 const router = express.Router();
 
 // Protect all routes in this router
-router.use(authController.protect);
+// router.use(authController.protect);
 router.route('/my')
     .get(cartController.getCart)       // Get the user's cart
     .post(cartController.addToCart);    // Add a course to the cart
