@@ -19,7 +19,7 @@ const signToken = (id) => {
 };
 
 // Send JWT as a cookie and response with user data
-const createSendResponse = (user, statusCode, res) => {
+const createSendResponse = async (user, statusCode, res) => {
     const token = signToken(user._id);
     const refreshToken = jwt.sign(
         { id: user._id },
@@ -28,29 +28,27 @@ const createSendResponse = (user, statusCode, res) => {
     );
 
     // Save refresh token in the database
-    RefreshToken.createRefreshToken(user._id, refreshToken);
+    await RefreshToken.createRefreshToken(user._id, refreshToken); // add await here
 
     const cookieOptions = {
-        maxAge: process.env.LOGIN_EXPIRES * 1000, // Convert to milliseconds
-        httpOnly: true, // Cookie accessible only by the web server
-        secure: process.env.NODE_ENV === 'production', // Send only via HTTPS in production
-        sameSite: 'none', // Changed from 'strict' to 'none' for cross-domain
+        maxAge: process.env.LOGIN_EXPIRES * 1000,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'none',
     };
 
-    res.cookie('jwt', token, cookieOptions); // Set the JWT in a cookie
-    res.cookie('refreshToken', refreshToken, cookieOptions); // Set the refresh token
+    res.cookie('jwt', token, cookieOptions);
+    res.cookie('refreshToken', refreshToken, cookieOptions);
 
-    // Send user response excluding password
     user.password = undefined;
     res.status(statusCode).json({
         status: 'success',
         token,
         refreshToken,
-        data: {
-            user,
-        },
+        data: { user },
     });
 };
+
 
 // User signup handler
 exports.signup = asyncErrorHandler(async (req, res, next) => {
