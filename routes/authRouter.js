@@ -15,7 +15,7 @@ router.post('/logout', authController.logout);
 router.post('/refresh-token', authController.refreshToken);
 
 // Protected routes (require authentication)
-// router.use(authController.protect);
+router.use(authController.protect);
 
 router.get('/check', authController.checkAuth); 
 router.get('/users', userController.getUsers);
