@@ -35,7 +35,7 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(morgan('dev'));
 app.use(express.static('./public'));
-app.use(cookieParser()); // Add cookie-parser middleware
+// Add cookie-parser middleware
 
 // Custom Middleware for adding request timestamp
 app.use((req, res, next) => {
