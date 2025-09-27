@@ -1,3 +1,4 @@
+// controllers/authController.js
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const CustomErr = require('../utils/CustomErr');
@@ -8,39 +9,118 @@ const util = require('util');
 const User = require('./../models/UserModel');
 const RefreshToken = require('./../models/RefreshTokenModel');
 
+/**
+ * Duration parser helper
+ * Accepts:
+ *  - number or numeric string "3600" -> seconds
+ *  - string with suffix "s", "m", "h", "d" -> converts to seconds
+ *  - plain jwt-friendly string like "7d" is also acceptable to jwt.sign, but for cookie maxAge we convert it to ms.
+ */
+const parseDurationSeconds = (val) => {
+    if (val === undefined || val === null) return 0;
+    if (typeof val === 'number') return val;
+    const s = String(val).trim();
+    // If it's a plain number string like "3600", parse it
+    if (/^\d+$/.test(s)) {
+        return Number(s);
+    }
+    // If it ends with a unit
+    const last = s.slice(-1).toLowerCase();
+    const numPart = s.slice(0, -1);
+    if (['s','m','h','d'].includes(last) && /^\d+$/.test(numPart)) {
+        const n = Number(numPart);
+        switch (last) {
+            case 's': return n;
+            case 'm': return n * 60;
+            case 'h': return n * 3600;
+            case 'd': return n * 86400;
+            default: return 0;
+        }
+    }
+    // fallback: try Number parse
+    const maybe = Number(s);
+    return Number.isNaN(maybe) ? 0 : maybe;
+};
+
+// Read env values (keep your original names)
+const ACCESS_SECRET = process.env.SECRET_STR; // used throughout your code
+const ACCESS_EXPIRES_RAW = process.env.LOGIN_EXPIRES; // could be "3600" or "7d"
+const REFRESH_SECRET = process.env.REFRESH_TOKEN; // used to sign refresh tokens
+const REFRESH_EXPIRES_RAW = process.env.REFRESH_TOKEN_EXPIRES; // e.g. "7d"
+
+// Convert to seconds for cookie calculations
+const ACCESS_EXPIRES_SEC = parseDurationSeconds(ACCESS_EXPIRES_RAW) || 0;
+const REFRESH_EXPIRES_SEC = parseDurationSeconds(REFRESH_EXPIRES_RAW) || 0;
+
+// -----------------------------
 // JWT token signing function
+// -----------------------------
 const signToken = (id) => {
-    if (!process.env.SECRET_STR) {
+    if (!ACCESS_SECRET) {
         throw new Error("SECRET_STR is not defined");
     }
-    return jwt.sign({ id }, process.env.SECRET_STR, {
-        expiresIn: process.env.LOGIN_EXPIRES,
+    // jwt accepts strings like "7d" or numeric seconds; we'll pass the raw to keep your config flexible
+    const expiresIn = ACCESS_EXPIRES_RAW || undefined;
+    return jwt.sign({ id }, ACCESS_SECRET, {
+        expiresIn,
     });
 };
 
+// -----------------------------
+// Refresh token signing function
+// -----------------------------
+const signRefreshToken = (id) => {
+    if (!REFRESH_SECRET) {
+        throw new Error("REFRESH_TOKEN is not defined");
+    }
+    const expiresIn = REFRESH_EXPIRES_RAW || undefined;
+    return jwt.sign({ id }, REFRESH_SECRET, {
+        expiresIn,
+    });
+};
+
+// -----------------------------
+// Build proper cookie options
+// -----------------------------
+const buildCookieOptions = (type = 'access') => {
+    const isProd = process.env.NODE_ENV === 'production';
+    // choose expiry
+    const maxAgeMs = (type === 'access' ? ACCESS_EXPIRES_SEC : REFRESH_EXPIRES_SEC) * 1000 || undefined;
+
+    const opts = {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: isProd ? 'none' : 'lax',
+    };
+    if (maxAgeMs !== undefined) opts.maxAge = maxAgeMs;
+    return opts;
+};
+
+// -----------------------------
 // Send JWT as a cookie and response with user data
+// -----------------------------
 const createSendResponse = async (user, statusCode, res) => {
     const token = signToken(user._id);
-    const refreshToken = jwt.sign(
-        { id: user._id },
-        process.env.REFRESH_TOKEN,
-        { expiresIn: process.env.REFRESH_TOKEN_EXPIRES }
-    );
+    const refreshToken = signRefreshToken(user._id);
 
-    // Save refresh token in the database
-    await RefreshToken.createRefreshToken(user._id, refreshToken); // add await here
+    // Save refresh token in the database (await important)
+    // Assumes RefreshToken model has createRefreshToken(userId, token) method
+    await RefreshToken.createRefreshToken(user._id, refreshToken);
 
-    const cookieOptions = {
-        maxAge: process.env.LOGIN_EXPIRES * 1000,
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    };
+    // cookie options for access token and refresh token
+    const accessCookieOptions = buildCookieOptions('access');
+    const refreshCookieOptions = buildCookieOptions('refresh');
 
-    res.cookie('jwt', token, cookieOptions);
-    res.cookie('refreshToken', refreshToken, cookieOptions);
+    // if ACCESS_EXPIRES_SEC is 0 or missing, don't set maxAge (let cookie default session)
+    if (accessCookieOptions.maxAge === undefined) delete accessCookieOptions.maxAge;
+    if (refreshCookieOptions.maxAge === undefined) delete refreshCookieOptions.maxAge;
 
+    res.cookie('jwt', token, accessCookieOptions);
+    res.cookie('refreshToken', refreshToken, refreshCookieOptions);
+
+    // Remove password from output
     user.password = undefined;
+
     res.status(statusCode).json({
         status: 'success',
         token,
@@ -49,8 +129,9 @@ const createSendResponse = async (user, statusCode, res) => {
     });
 };
 
-
+// ============================
 // User signup handler
+// ============================
 exports.signup = asyncErrorHandler(async (req, res, next) => {
     const newUser = await User.create(req.body);
     newUser.password = undefined; // Hide password in response
@@ -61,7 +142,9 @@ exports.signup = asyncErrorHandler(async (req, res, next) => {
     });
 });
 
+// ============================
 // Email validation request handler
+// ============================
 exports.validateEmail = asyncErrorHandler(async (req, res, next) => {
     const { email } = req.body;
     const user = await User.findOne({ email });
@@ -104,7 +187,9 @@ exports.validateEmail = asyncErrorHandler(async (req, res, next) => {
     }
 });
 
+// ============================
 // Validate the validation number
+// ============================
 exports.validateNow = asyncErrorHandler(async (req, res, next) => {
     const { email, validationNumber } = req.body;
     const user = await User.findOne({ email });
@@ -126,10 +211,13 @@ exports.validateNow = asyncErrorHandler(async (req, res, next) => {
     user.validationNumberExpiresAt = undefined;
     await user.save({ validateBeforeSave: false });
 
-    createSendResponse(user, 200, res);
+    // Reuse createSendResponse to set cookies and return tokens
+    await createSendResponse(user, 200, res);
 });
 
+// ============================
 // User login handler
+// ============================
 exports.login = asyncErrorHandler(async (req, res, next) => {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -146,20 +234,22 @@ exports.login = asyncErrorHandler(async (req, res, next) => {
         return next(new CustomErr("Incorrect email or password", 400));
     }
 
-    createSendResponse(user, 200, res);
+    await createSendResponse(user, 200, res);
 });
 
+// ============================
 // Middleware to protect routes and authenticate users based on JWT in cookies
+// ============================
 exports.protect = asyncErrorHandler(async (req, res, next) => {
-    const token = req.cookies.jwt; // Get the token from the cookie
-    
+    const token = req.cookies && req.cookies.jwt; // Get the token from the cookie
+
     if (!token) {
         return next(new CustomErr('You are not logged in', 401));
     }
 
     try {
-        const decodedToken = await util.promisify(jwt.verify)(token, process.env.SECRET_STR);
-        
+        const decodedToken = await util.promisify(jwt.verify)(token, ACCESS_SECRET);
+
         const user = await User.findById(decodedToken.id);
         if (!user) {
             return next(new CustomErr('The user no longer exists with this token', 401));
@@ -174,7 +264,8 @@ exports.protect = asyncErrorHandler(async (req, res, next) => {
         return next();
 
     } catch (error) {
-        if (error.name === 'TokenExpiredError') {
+        // If access token expired, attempt to refresh using refresh token
+        if (error && error.name === 'TokenExpiredError') {
             return refreshAccessToken(req, res, next);
         }
         return next(new CustomErr('Authentication failed. Please log in again.', 401));
@@ -182,17 +273,26 @@ exports.protect = asyncErrorHandler(async (req, res, next) => {
 
 });
 
+// ============================
 // Function to refresh the access token
+// ============================
 const refreshAccessToken = async (req, res, next) => {
-    const refreshToken = req.cookies.refreshToken; // Get the refresh token from cookies
+    const refreshToken = req.cookies && req.cookies.refreshToken; // Get the refresh token from cookies
 
     if (!refreshToken) {
         return next(new CustomErr('You are not logged in. Please log in again.', 401));
     }
 
     try {
-        const decodedRefreshToken = await util.promisify(jwt.verify)(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-        
+        // verify refresh token using REFRESH_SECRET (process.env.REFRESH_TOKEN)
+        const decodedRefreshToken = await util.promisify(jwt.verify)(refreshToken, REFRESH_SECRET);
+
+        // if you store refresh tokens in DB, verify it exists and is not revoked/expired
+        const dbToken = await RefreshToken.findByUserIdAndToken(decodedRefreshToken.id, refreshToken);
+        if (!dbToken) {
+            return next(new CustomErr('Refresh token invalid or revoked. Please log in again.', 401));
+        }
+
         const user = await User.findById(decodedRefreshToken.id);
         if (!user) {
             return next(new CustomErr('User no longer exists', 401));
@@ -200,12 +300,10 @@ const refreshAccessToken = async (req, res, next) => {
 
         // Issue a new access token
         const newAccessToken = signToken(user._id);
-        res.cookie('jwt', newAccessToken, {
-            maxAge: process.env.LOGIN_EXPIRES * 1000,
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'none', // Changed for deployment
-        });
+
+        const cookieOptions = buildCookieOptions('access');
+        // set cookie (maxAge already set in buildCookieOptions)
+        res.cookie('jwt', newAccessToken, cookieOptions);
 
         req.user = user; // Grant access
         return next();
@@ -214,7 +312,9 @@ const refreshAccessToken = async (req, res, next) => {
     }
 };
 
+// ============================
 // Restrict actions to certain roles
+// ============================
 exports.restrictTo = (...roles) => {
     return (req, res, next) => {
         if (!roles.includes(req.user.role)) {
@@ -224,7 +324,9 @@ exports.restrictTo = (...roles) => {
     };
 };
 
+// ============================
 // Forgot password handler
+// ============================
 exports.forgotPassword = asyncErrorHandler(async (req, res, next) => {
     const user = await User.findOne({ email: req.body.email });
     if (!user || !user.active) {
@@ -260,7 +362,9 @@ exports.forgotPassword = asyncErrorHandler(async (req, res, next) => {
     }
 });
 
+// ============================
 // Reset password handler
+// ============================
 exports.resetPassword = asyncErrorHandler(async (req, res, next) => {
     const hashedToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
     const user = await User.findOne({
@@ -277,24 +381,29 @@ exports.resetPassword = asyncErrorHandler(async (req, res, next) => {
     user.passwordResetTokenExpires = undefined;
     await user.save();
 
-    createSendResponse(user, 200, res);
+    await createSendResponse(user, 200, res);
 });
 
+// ============================
 // Logout handler
+// ============================
 exports.logout = asyncErrorHandler(async (req, res, next) => {
-    res.cookie('jwt', 'logout', {
-        expires: new Date(Date.now() + 1000),
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'none',
-    });
+    // remove refresh token from DB if present
+    const rt = req.cookies && req.cookies.refreshToken;
+    if (rt) {
+        try {
+            await RefreshToken.deleteByToken(rt);
+        } catch (e) {
+            // ignore deletion errors
+        }
+    }
 
-    res.cookie('refreshToken', 'logout', {
-        expires: new Date(Date.now() + 1000),
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'none',
-    });
+    const cookieOptions = buildCookieOptions('access');
+    const refreshCookieOptions = buildCookieOptions('refresh');
+
+    // expire cookies immediately
+    res.cookie('jwt', 'logout', { ...cookieOptions, expires: new Date(Date.now() + 1000) });
+    res.cookie('refreshToken', 'logout', { ...refreshCookieOptions, expires: new Date(Date.now() + 1000) });
 
     res.status(200).json({
         status: 'success',
@@ -302,7 +411,9 @@ exports.logout = asyncErrorHandler(async (req, res, next) => {
     });
 });
 
+// ============================
 // Get current logged in user details
+// ============================
 exports.getMe = asyncErrorHandler(async (req, res, next) => {
     res.status(200).json({
         status: 'success',
@@ -312,29 +423,31 @@ exports.getMe = asyncErrorHandler(async (req, res, next) => {
     });
 });
 
+// ============================
 // Refresh token route
+// ============================
 exports.refreshToken = asyncErrorHandler(async (req, res, next) => {
-    const refreshToken = req.cookies.refreshToken;
+    const refreshToken = req.cookies && req.cookies.refreshToken;
 
     if (!refreshToken) {
         return next(new CustomErr('You are not logged in. Please log in again.', 401));
     }
 
     try {
-        const decodedRefreshToken = await util.promisify(jwt.verify)(refreshToken, process.env.REFRESH_TOKEN);
-        
+        const decodedRefreshToken = await util.promisify(jwt.verify)(refreshToken, REFRESH_SECRET);
+
+        // verify refresh token exists in DB
+        const dbToken = await RefreshToken.findByUserIdAndToken(decodedRefreshToken.id, refreshToken);
+        if (!dbToken) return next(new CustomErr('User no longer exists', 401));
+
         const user = await User.findById(decodedRefreshToken.id);
         if (!user) {
             return next(new CustomErr('User no longer exists', 401));
         }
 
         const newAccessToken = signToken(user._id);
-        res.cookie('jwt', newAccessToken, {
-            maxAge: process.env.LOGIN_EXPIRES * 1000,
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'none',
-        });
+        const cookieOptions = buildCookieOptions('access');
+        res.cookie('jwt', newAccessToken, cookieOptions);
 
         req.user = user;
         return res.status(200).json({
@@ -346,7 +459,9 @@ exports.refreshToken = asyncErrorHandler(async (req, res, next) => {
     }
 });
 
+// ============================
 // Check authentication status
+// ============================
 exports.checkAuth = asyncErrorHandler(async (req, res, next) => {
     if (!req.user) {
         return next(new CustomErr('You are not logged in', 401));
