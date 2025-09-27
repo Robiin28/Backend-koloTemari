@@ -425,21 +425,31 @@ exports.getMe = asyncErrorHandler(async (req, res, next) => {
 // Refresh token route
 // ============================
 exports.refreshToken = asyncErrorHandler(async (req, res, next) => {
+    // Log all incoming cookies
+    console.log("Incoming cookies:", req.cookies);
+
     const refreshToken = req.cookies && req.cookies.refreshToken;
+    console.log("Refresh token received:", refreshToken);
 
     if (!refreshToken) {
         return next(new CustomErr('You are not logged in. Please log in again.', 401));
     }
 
     try {
+        // Verify refresh token
         const decodedRefreshToken = await util.promisify(jwt.verify)(refreshToken, REFRESH_SECRET);
+        console.log("Decoded refresh token:", decodedRefreshToken);
 
-        // verify refresh token exists in DB
+        // Verify refresh token exists in DB
         const dbToken = await RefreshToken.findByUserIdAndToken(decodedRefreshToken.id, refreshToken);
-        if (!dbToken) return next(new CustomErr('User no longer exists', 401));
+        if (!dbToken) {
+            console.log("Refresh token not found in DB");
+            return next(new CustomErr('User no longer exists', 401));
+        }
 
         const user = await User.findById(decodedRefreshToken.id);
         if (!user) {
+            console.log("User not found");
             return next(new CustomErr('User no longer exists', 401));
         }
 
@@ -453,9 +463,11 @@ exports.refreshToken = asyncErrorHandler(async (req, res, next) => {
             token: newAccessToken,
         });
     } catch (err) {
+        console.log("Error verifying refresh token:", err);
         return next(new CustomErr('Refresh token invalid or expired. Please log in again.', 401));
     }
 });
+
 
 // ============================
 // Check authentication status
