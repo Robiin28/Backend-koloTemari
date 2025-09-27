@@ -2,7 +2,6 @@ const mongoose = require('mongoose');
 const validator = require('validator');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
-const CustomErr = require('../utils/CustomErr');
 
 const userSchema = new mongoose.Schema({
     name: {
@@ -33,27 +32,22 @@ const userSchema = new mongoose.Schema({
             message: "password and confirm password don't match",
         },
     },
-    pic: {
-        type: String,
-    },
+    pic: { type: String },
     passwordChangedAt: Date,
     role: {
         type: String,
-        enum: [ "admin", "student", "instructor"],
+        enum: ["admin", "student", "instructor"],
         default: "student",
     },
-    bio:{
-        type:String
-    },
-    active: {
-        type: Boolean,
-        default: false,
-    },
+    bio: { type: String },
+    active: { type: Boolean, default: false },
     passwordResetToken: String,
+    passwordResetTokenExpires: Date, // Fixed name to match controller
     encryptedValidationNumber: String,
-    passwordResetTokenExpire: Date,
     validationNumberExpiresAt: Date,
 });
+
+// Hash password before saving
 userSchema.pre('save', async function (next) {
     if (!this.isModified('password')) return next();
     this.password = await bcrypt.hash(this.password, 12);
@@ -61,16 +55,18 @@ userSchema.pre('save', async function (next) {
     next();
 });
 
-userSchema.pre('find', function (next) {
-    this.where({ active: true }); // Only find active users
+// Only find active users
+userSchema.pre(/^find/, function (next) {
+    this.where({ active: true });
     next();
 });
 
-// Comparison and utility methods
+// Compare password with hashed password in DB
 userSchema.methods.comparePasswordInDb = async function (pswd, pswdDb) {
     return await bcrypt.compare(pswd, pswdDb);
 };
 
+// Check if password was changed after JWT issued
 userSchema.methods.isPasswordChanged = async function (JwtTimestamp) {
     if (this.passwordChangedAt) {
         const passwdChangedTimestamp = parseInt(this.passwordChangedAt.getTime() / 1000, 10);
@@ -79,20 +75,21 @@ userSchema.methods.isPasswordChanged = async function (JwtTimestamp) {
     return false;
 };
 
+// Create reset password token
 userSchema.methods.createResetPasswordToken = function () {
     const resetToken = crypto.randomBytes(32).toString('hex');
     this.passwordResetToken = crypto.createHash('sha256').update(resetToken).digest('hex');
-    this.passwordResetTokenExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
+    this.passwordResetTokenExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
     return resetToken;
 };
 
+// Generate and encrypt validation number
 userSchema.methods.generateAndEncryptValidationNumber = function () {
-    const randomNumber = Math.floor(10000000 + Math.random() * 90000000).toString(); // Convert to string
+    const randomNumber = Math.floor(10000000 + Math.random() * 90000000).toString();
     const cipher = crypto.createHash('sha256').update(randomNumber).digest('hex');
-    this.active = false; // This line may not be necessary; consider removing it
     this.encryptedValidationNumber = cipher;
     this.validationNumberExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
-    return randomNumber; // Return the random number as a string
+    return randomNumber;
 };
 
 const User = mongoose.model('User', userSchema);
