@@ -18,7 +18,6 @@ const globalErrorHandler = require('./controller/errController');
 const CustomErr = require('./utils/CustomErr');
 
 const app = express();
-
 // ----------------------------
 // CORS configuration
 // ----------------------------
