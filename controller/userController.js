@@ -149,18 +149,39 @@ exports.getUserById = asyncErrorHandler(async (req, res, next) => {
     });
 });
 exports.getMe = asyncErrorHandler(async (req, res, next) => {
+  try {
+    console.log("📌 Incoming request to /auth/me");
+    console.log("Headers:", req.headers);              // Log all headers
+    console.log("Authorization header:", req.headers.authorization); 
+    console.log("Cookies:", req.cookies);             // Log cookies if any
+    console.log("Method:", req.method);               // GET / POST
+    console.log("Original URL:", req.originalUrl);    // Path
+    console.log("IP:", req.ip);                       // Client IP
+
+    if (!req.user) {
+      console.warn("⚠️ No user found in req.user. Token missing or invalid.");
+      return res.status(401).json({ message: "Unauthorized: No user info" });
+    }
+
     const user = await User.findById(req.user._id).select('-password'); // Exclude password
 
     if (!user) {
-        return next(new CustomErr('User not found', 404));
+      console.warn(`⚠️ User not found in DB with id ${req.user._id}`);
+      return next(new CustomErr('User not found', 404));
     }
 
+    console.log("✅ User fetched successfully:", user);
+
     res.status(200).json({
-        status: 'success',
-        data: {
-            user,
-        },
+      status: 'success',
+      data: { user },
     });
+
+  } catch (err) {
+    console.error("❌ Error in getMe:", err);
+    next(err);
+  }
 });
+
 
 
