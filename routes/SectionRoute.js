@@ -6,7 +6,7 @@ const validateCourseId = require('../middleware/validateCourseId'); // Import th
 const router = express.Router({ mergeParams: true }); // Ensure mergeParams is set to true
 
 // Protect all routes
-// router.use(authController.protect);
+router.use(authController.protect);
 
 // Middleware to validate course ID for all section routes under /api/courses/:courseId/sections
 router.use(validateCourseId); // Apply the middleware to all routes in this router
