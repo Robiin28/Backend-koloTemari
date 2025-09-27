@@ -141,7 +141,6 @@ exports.signup = asyncErrorHandler(async (req, res, next) => {
         message: 'Now validate your email.',
     });
 });
-
 // ============================
 // Email validation request handler
 // ============================
@@ -311,7 +310,6 @@ const refreshAccessToken = async (req, res, next) => {
         return next(new CustomErr('Refresh token invalid or expired. Please log in again.', 401));
     }
 };
-
 // ============================
 // Restrict actions to certain roles
 // ============================
@@ -472,3 +470,4 @@ exports.checkAuth = asyncErrorHandler(async (req, res, next) => {
         user: req.user,
     });
 });
+
