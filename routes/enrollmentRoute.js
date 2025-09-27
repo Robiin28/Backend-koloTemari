@@ -4,7 +4,7 @@ const authController = require('../controller/authController');
 const validateCourseId = require('../middleware/validateCourseId'); // Import the middleware
 const router = express.Router({ mergeParams: true });
 
-// router.use(authController.protect);
+router.use(authController.protect);
 
 
 // Route for handling enrollments
