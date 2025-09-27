@@ -2,6 +2,7 @@ const express = require('express');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
+
 const authRouter = require('./routes/authRouter');
 const courseRouter = require('./routes/courseRoute');
 const lessonRouter = require('./routes/lessonRoute');
@@ -21,17 +22,19 @@ const app = express();
 // ----------------------------
 // CORS configuration
 // ----------------------------
-app.use(cors({
-    origin: function(origin, callback){
-        if (!origin) return callback(null, true); // allow non-browser requests
-        if (origin.includes('localhost:3000') || origin.endsWith('.vercel.app')) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true); // allow non-browser requests
+      if (origin.includes('localhost:3000') || origin.endsWith('.vercel.app')) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
     },
     credentials: true, // Allow cookies
-}));
+  })
+);
 
 // ----------------------------
 // Middleware
@@ -43,8 +46,8 @@ app.use(express.static('./public'));
 
 // Custom Middleware: request timestamp
 app.use((req, res, next) => {
-    req.requestedAt = new Date().toISOString();
-    next();
+  req.requestedAt = new Date().toISOString();
+  next();
 });
 
 // ----------------------------
@@ -67,7 +70,7 @@ app.use('/api/cart', cartRouter);
 // Handle undefined routes
 // ----------------------------
 app.all('*', (req, res, next) => {
-    next(new CustomErr(`Can't find ${req.originalUrl} on the server`, 404));
+  next(new CustomErr(`Can't find ${req.originalUrl} on the server`, 404));
 });
 
 // ----------------------------
