@@ -240,7 +240,13 @@ exports.login = asyncErrorHandler(async (req, res, next) => {
 // Middleware to protect routes and authenticate users based on JWT in cookies
 // ============================
 exports.protect = asyncErrorHandler(async (req, res, next) => {
-    const token = req.cookies && req.cookies.jwt; // Get the token from the cookie
+    // 1. Check Authorization header first
+    let token;
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+        token = req.headers.authorization.split(' ')[1];
+    } else if (req.cookies && req.cookies.jwt) {
+        token = req.cookies.jwt;
+    }
 
     if (!token) {
         return next(new CustomErr('You are not logged in', 401));
@@ -250,27 +256,21 @@ exports.protect = asyncErrorHandler(async (req, res, next) => {
         const decodedToken = await util.promisify(jwt.verify)(token, ACCESS_SECRET);
 
         const user = await User.findById(decodedToken.id);
-        if (!user) {
-            return next(new CustomErr('The user no longer exists with this token', 401));
-        }
+        if (!user) return next(new CustomErr('User no longer exists', 401));
 
         const isPasswordChanged = await user.isPasswordChanged(decodedToken.iat);
-        if (isPasswordChanged) {
-            return next(new CustomErr('The password was changed recently. Please log in again!', 401));
-        }
+        if (isPasswordChanged) return next(new CustomErr('Password recently changed. Please login again!', 401));
 
-        req.user = user; // Grant access
-        return next();
-
+        req.user = user;
+        next();
     } catch (error) {
-        // If access token expired, attempt to refresh using refresh token
-        if (error && error.name === 'TokenExpiredError') {
+        if (error.name === 'TokenExpiredError') {
             return refreshAccessToken(req, res, next);
         }
         return next(new CustomErr('Authentication failed. Please log in again.', 401));
     }
-
 });
+
 
 // ============================
 // Function to refresh the access token
