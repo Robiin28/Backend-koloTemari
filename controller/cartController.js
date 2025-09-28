@@ -55,15 +55,28 @@ exports.addToCart = asyncErrorHandler(async (req, res, next) => {
 
 // Get user's cart
 exports.getCart = asyncErrorHandler(async (req, res, next) => {
-    const cart = await Cart.findOne({ userId: req.user._id }).populate('items.courseId');
+    let cart;
 
+    try {
+        // Attempt to fetch the user's cart
+        cart = await Cart.findOne({ userId: req.user._id }).populate({
+            path: 'items.courseId',
+            select: 'title pic instructor hours level price',
+        });
+    } catch (err) {
+        // If any DB error occurs, forward it
+        console.error("Database error fetching cart:", err);
+        return next(new CustomErr('Database error while fetching cart', 500));
+    }
+
+    // If no cart exists, return an empty cart object (not an error)
     if (!cart) {
-        return next(new CustomErr('No cart found for this user', 404));
+        cart = { userId: req.user._id, items: [] };
     }
 
     res.status(200).json({
         status: 'success',
-        data: { cart }
+        data: { cart },
     });
 });
 
