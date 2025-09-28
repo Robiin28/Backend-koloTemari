@@ -83,21 +83,6 @@ exports.getEnrollment = asyncErrorHandler(async (req, res, next) => {
     });
 });
 
-
-exports.getEnrollmentsByUser = asyncErrorHandler(async (req, res, next) => {
-    const userId = req.params.id; 
-    const enrollments = await Enrollment.find({ student: userId }).populate('student course');
-    if (!enrollments || enrollments.length === 0) {
-        return next(new CustomErr('No enrollments found for this user', 404));
-    }
-    res.status(200).json({
-        status: 'success',
-        data: {
-            enrollments
-        }
-    });
-});
-
 exports.getEnrollmentsByUser = asyncErrorHandler(async (req, res, next) => {
     const userId = req.params.id;
 
