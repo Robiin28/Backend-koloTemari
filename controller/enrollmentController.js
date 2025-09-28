@@ -59,12 +59,11 @@ exports.getEnrollment = asyncErrorHandler(async (req, res, next) => {
     try {
         enrollment = await Enrollment.findById(req.params.id).populate('student course');
     } catch (err) {
-        // If invalid ObjectId or DB error → throw error
         return next(new CustomErr('Invalid enrollment ID or database error', 400));
     }
 
     if (!enrollment) {
-        // No enrollment found with this ID → return success but with null
+        // No enrollment found for that ID → success but null
         return res.status(200).json({
             status: 'success',
             data: {
@@ -74,7 +73,6 @@ exports.getEnrollment = asyncErrorHandler(async (req, res, next) => {
         });
     }
 
-    // Enrollment found → return it
     res.status(200).json({
         status: 'success',
         data: {
@@ -83,6 +81,7 @@ exports.getEnrollment = asyncErrorHandler(async (req, res, next) => {
     });
 });
 
+
 exports.getEnrollmentsByUser = asyncErrorHandler(async (req, res, next) => {
     const userId = req.params.id;
 
@@ -90,12 +89,10 @@ exports.getEnrollmentsByUser = asyncErrorHandler(async (req, res, next) => {
     try {
         enrollments = await Enrollment.find({ student: userId }).populate('student course');
     } catch (err) {
-        // Invalid ObjectId or DB query error
         return next(new CustomErr('Invalid user ID or database error', 400));
     }
 
     if (!enrollments || enrollments.length === 0) {
-        // No enrollments, but valid request
         return res.status(200).json({
             status: 'success',
             data: {
@@ -105,7 +102,6 @@ exports.getEnrollmentsByUser = asyncErrorHandler(async (req, res, next) => {
         });
     }
 
-    // Found enrollments
     res.status(200).json({
         status: 'success',
         data: {
@@ -113,6 +109,7 @@ exports.getEnrollmentsByUser = asyncErrorHandler(async (req, res, next) => {
         }
     });
 });
+
 
 
 exports.getEnrollmentsByCourse = asyncErrorHandler(async (req, res, next) => {
@@ -162,6 +159,18 @@ exports.updateProgress = asyncErrorHandler(async (req, res, next) => {
         data: {
             enrollment,
         },
+    });
+});
+exports.deleteEnrollment = asyncErrorHandler(async (req, res, next) => {
+    const enrollment = await Enrollment.findByIdAndDelete(req.params.id);
+
+    if (!enrollment) {
+        return next(new CustomErr('No enrollment found with that ID', 404));
+    }
+
+    res.status(204).json({
+        status: 'success',
+        data: null
     });
 });
 
