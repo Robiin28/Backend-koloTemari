@@ -53,14 +53,28 @@ exports.getAllEnrollments = asyncErrorHandler(async (req, res, next) => {
         }
     });
 });
-
 exports.getEnrollment = asyncErrorHandler(async (req, res, next) => {
-    const enrollment = await Enrollment.findById(req.params.id).populate('student course');
+    let enrollment;
 
-    if (!enrollment) {
-        return next(new CustomErr('No enrollment found with that ID', 404));
+    try {
+        enrollment = await Enrollment.findById(req.params.id).populate('student course');
+    } catch (err) {
+        // If invalid ObjectId or DB error → throw error
+        return next(new CustomErr('Invalid enrollment ID or database error', 400));
     }
 
+    if (!enrollment) {
+        // No enrollment found with this ID → return success but with null
+        return res.status(200).json({
+            status: 'success',
+            data: {
+                enrollment: null
+            },
+            message: 'No enrollment found with that ID'
+        });
+    }
+
+    // Enrollment found → return it
     res.status(200).json({
         status: 'success',
         data: {
@@ -68,6 +82,7 @@ exports.getEnrollment = asyncErrorHandler(async (req, res, next) => {
         }
     });
 });
+
 
 exports.getEnrollmentsByUser = asyncErrorHandler(async (req, res, next) => {
     const userId = req.params.id; 
@@ -83,18 +98,37 @@ exports.getEnrollmentsByUser = asyncErrorHandler(async (req, res, next) => {
     });
 });
 
-exports.deleteEnrollment = asyncErrorHandler(async (req, res, next) => {
-    const enrollment = await Enrollment.findByIdAndDelete(req.params.id);
+exports.getEnrollmentsByUser = asyncErrorHandler(async (req, res, next) => {
+    const userId = req.params.id;
 
-    if (!enrollment) {
-        return next(new CustomErr('No enrollment found with that ID', 404));
+    let enrollments;
+    try {
+        enrollments = await Enrollment.find({ student: userId }).populate('student course');
+    } catch (err) {
+        // Invalid ObjectId or DB query error
+        return next(new CustomErr('Invalid user ID or database error', 400));
     }
 
-    res.status(204).json({
+    if (!enrollments || enrollments.length === 0) {
+        // No enrollments, but valid request
+        return res.status(200).json({
+            status: 'success',
+            data: {
+                enrollments: []
+            },
+            message: 'No enrollments found for this user'
+        });
+    }
+
+    // Found enrollments
+    res.status(200).json({
         status: 'success',
-        data: null
+        data: {
+            enrollments
+        }
     });
 });
+
 
 exports.getEnrollmentsByCourse = asyncErrorHandler(async (req, res, next) => {
     const courseId = req.params.courseId;
