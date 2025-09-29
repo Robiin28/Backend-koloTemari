@@ -135,7 +135,12 @@ exports.deleteUser = asyncErrorHandler(async (req, res, next) => {
 exports.getUserById = asyncErrorHandler(async (req, res, next) => {
     const userId = req.params.id;
 
-    const user = await User.findById(userId).select('-password'); // Exclude password from the response
+    // Check if ID is a valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+        return next(new CustomErr('Invalid user ID format', 400));
+    }
+
+    const user = await User.findById(userId).select('-password');
 
     if (!user) {
         return next(new CustomErr('User not found', 404));
@@ -143,9 +148,7 @@ exports.getUserById = asyncErrorHandler(async (req, res, next) => {
 
     res.status(200).json({
         status: 'success',
-        data: {
-            user,
-        },
+        data: { user },
     });
 });
 exports.getMe = asyncErrorHandler(async (req, res, next) => {
