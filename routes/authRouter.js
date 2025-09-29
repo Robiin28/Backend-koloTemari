@@ -19,7 +19,7 @@ router.use(authController.protect);
 
 router.get('/check', authController.checkAuth); 
 router.get('/users', userController.getUsers);
-router.get('/users/:role', userController.getUsersByRole);
+router.get('/users/role/:role', userController.getUsersByRole);
 router.get('/me', userController.getMe);
 router.get('/users/:id', userController.getUserById);
 
