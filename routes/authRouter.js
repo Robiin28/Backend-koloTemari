@@ -19,9 +19,9 @@ router.use(authController.protect);
 
 router.get('/check', authController.checkAuth); 
 router.get('/users', userController.getUsers);
-router.get('/users/role/:role', userController.getUsersByRole);
+router.get('/users/:role', userController.getUsersByRole);
 router.get('/me', userController.getMe);
-router.get('/users/id/:id', userController.getUserById);
+router.get('/users/:id', userController.getUserById);
 
 router.patch('/updatePassword', userController.updatePassword);
 router.patch('/updateMe', userController.updateMe);
