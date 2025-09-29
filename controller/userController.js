@@ -4,6 +4,8 @@ const CustomErr = require('../utils/CustomErr');
 const asyncErrorHandler = require('../utils/ErrorHandler');
 const sendEmail = require('../utils/Email');
 const crypto = require('crypto');
+const mongoose = require("mongoose");
+
 
 const signToken = id => {
   return  jwt.sign({ id }, process.env.SECRET_STR, {
