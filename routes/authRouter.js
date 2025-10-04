@@ -12,7 +12,7 @@ router.get('/google', authController.googleLogin);
 router.get('/google/callback', authController.googleCallback);
 // git
 router.get('/github', authController.githubLogin);
-router.get('/github/callback', authController.githubCallback);
+router.get('/git/callback', authController.githubCallback);
 
 // New POST route for token-based GitHub login
 router.post('/github/token-login', authController.githubTokenLogin);
