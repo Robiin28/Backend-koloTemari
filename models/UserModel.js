@@ -36,7 +36,7 @@ const userSchema = new mongoose.Schema({
         message: "password and confirm password don't match",
     },
 },
-provider: { type: String } // "google" or "local"
+provider: { type: String }, // "google" or "local"
     pic: { type: String },
     passwordChangedAt: Date,
     role: {
