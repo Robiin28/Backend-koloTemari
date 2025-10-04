@@ -22,16 +22,21 @@ const userSchema = new mongoose.Schema({
         minlength: 8,
         select: false,
     },
-    confirmPassword: {
-        type: String,
-        required: [true, "please confirm your password"],
-        validate: {
-            validator: function (val) {
-                return val === this.password;
-            },
-            message: "password and confirm password don't match",
-        },
+   confirmPassword: {
+    type: String,
+    required: function () {
+        // Only required if provider is local signup
+        return !this.provider;
     },
+    validate: {
+        validator: function (val) {
+            if (!this.provider) return val === this.password; // validate only for normal signup
+            return true; // skip validation for OAuth users
+        },
+        message: "password and confirm password don't match",
+    },
+},
+provider: { type: String } // "google" or "local"
     pic: { type: String },
     passwordChangedAt: Date,
     role: {
