@@ -1,6 +1,8 @@
 // controllers/authController.js
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
+const passport = require('passport');
+
 const CustomErr = require('../utils/CustomErr');
 const asyncErrorHandler = require('../utils/ErrorHandler');
 const sendEmail = require('../utils/Email');
