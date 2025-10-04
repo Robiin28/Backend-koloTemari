@@ -18,37 +18,41 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 exports.googleTokenLogin = asyncErrorHandler(async (req, res, next) => {
   const { token } = req.body;
 
-  if (!token) {
-    return next(new CustomErr('Google token missing', 400));
-  }
+  if (!token) return next(new CustomErr('Google token missing', 400));
 
-  // Verify the token with Google
-  const ticket = await client.verifyIdToken({
-    idToken: token,
-    audience: process.env.GOOGLE_CLIENT_ID,
-  });
+  const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-  const payload = ticket.getPayload();
-  const { email, name, picture } = payload;
-
-  // Find existing user or create new
-  let user = await User.findOne({ email });
-
-  if (!user) {
-    user = await User.create({
-      email,
-      name,
-      pic: picture,
-      active: true, // already verified by Google
-      password: crypto.randomBytes(32).toString('hex'), // dummy password
-      confirmPassword: crypto.randomBytes(32).toString('hex'), // required by schema
-      role: 'student', // default role
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID,
     });
-  }
 
-  // Send JWT and cookies
-  await createSendResponse(user, 200, res);
+    const payload = ticket.getPayload();
+    const { email, name, picture } = payload;
+
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      user = await User.create({
+        name,
+        email,
+        pic: picture, // make sure your User model uses `pic` (not `photo`)
+        password: crypto.randomBytes(32).toString('hex'), // dummy password
+        active: true,
+        provider: 'google',
+      });
+    }
+
+    console.log('Google login successful for:', email);
+
+    await createSendResponse(user, 200, res);
+  } catch (err) {
+    console.error('Google login error:', err);
+    return next(new CustomErr('Failed to authenticate with Google', 500));
+  }
 });
+
 
 /**
  * Duration parser helper
