@@ -31,7 +31,6 @@ exports.githubLogin = (req, res) => {
 };
 
 // 2️⃣ GitHub OAuth callback handler (exchange code → token → fetch user → send JWT)
-// controllers/authController.js
 exports.githubCallback = async (req, res, next) => {
   try {
     const code = req.query.code;
@@ -59,6 +58,7 @@ exports.githubCallback = async (req, res, next) => {
     const emailResponse = await axios.get('https://api.github.com/user/emails', {
       headers: { Authorization: `token ${accessToken}` },
     });
+
     const emails = emailResponse.data;
     const primaryEmailObj = emails.find(e => e.primary) || emails[0];
     const email = primaryEmailObj?.email;
@@ -78,12 +78,16 @@ exports.githubCallback = async (req, res, next) => {
       });
     }
 
-    // Set JWT cookies
-    await createSendResponse(user, 200, res);
+    // ✅ Set JWT cookies
+    const token = signToken(user._id);
+    const refreshToken = signRefreshToken(user._id);
+    await RefreshToken.createRefreshToken(user._id, refreshToken);
 
-    // Redirect back to signup page (or wherever you want)
-    res.redirect(`${process.env.FRONTEND_URL}/signup?login=github`);
+    res.cookie('jwt', token, buildCookieOptions('access'));
+    res.cookie('refreshToken', refreshToken, buildCookieOptions('refresh'));
 
+    // ✅ Redirect to frontend success page instead of sending JSON
+    res.redirect(`${process.env.FRONTEND_URL}/oauth-success`);
   } catch (err) {
     console.error(err);
     next(new CustomErr('GitHub login failed', 500));
