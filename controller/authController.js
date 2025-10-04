@@ -8,6 +8,7 @@ const asyncErrorHandler = require('../utils/ErrorHandler');
 const sendEmail = require('../utils/Email');
 const crypto = require('crypto');
 const util = require('util');
+const axios = require('axios');
 const User = require('./../models/UserModel');
 const RefreshToken = require('./../models/RefreshTokenModel');
 
