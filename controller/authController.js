@@ -20,15 +20,28 @@ exports.googleTokenLogin = asyncErrorHandler(async (req, res, next) => {
 
   if (!token) return next(new CustomErr('Google token missing', 400));
 
-  const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-
   try {
-    const ticket = await client.verifyIdToken({
-      idToken: token,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
+    let payload;
 
-    const payload = ticket.getPayload();
+    if (token.split('.').length === 3) {
+        // ID token
+        const ticket = await client.verifyIdToken({
+            idToken: token,
+            audience: process.env.GOOGLE_CLIENT_ID,
+        });
+        payload = ticket.getPayload();
+    } else if (token.startsWith('ya29')) {
+        // Access token
+        const { data } = await axios.get(`https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=${token}`);
+        payload = {
+            email: data.email,
+            name: data.name,
+            picture: data.picture,
+        };
+    } else {
+        return next(new CustomErr('Invalid Google token', 400));
+    }
+
     const { email, name, picture } = payload;
 
     let user = await User.findOne({ email });
@@ -37,21 +50,21 @@ exports.googleTokenLogin = asyncErrorHandler(async (req, res, next) => {
       user = await User.create({
         name,
         email,
-        pic: picture, // make sure your User model uses `pic` (not `photo`)
-        password: crypto.randomBytes(32).toString('hex'), // dummy password
+        pic: picture,
+        password: crypto.randomBytes(32).toString('hex'),
         active: true,
         provider: 'google',
       });
     }
 
-    console.log('Google login successful for:', email);
-
+    console.log('✅ Google login successful for:', email);
     await createSendResponse(user, 200, res);
   } catch (err) {
-    console.error('Google login error:', err);
+    console.error('❌ Google login error:', err);
     return next(new CustomErr('Failed to authenticate with Google', 500));
   }
 });
+
 
 
 /**
