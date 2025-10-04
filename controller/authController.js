@@ -18,121 +18,106 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 
 
-// Initiate GitHub login (redirect to GitHub)
+// 1️⃣ Initiate GitHub login (redirect user to GitHub)
 exports.githubLogin = (req, res) => {
   const params = new URLSearchParams({
     client_id: process.env.GIT_CLIENT_ID,
-    redirect_uri: process.env.GIT_REDIRECT_URL, // should point to your backend callback
+    redirect_uri: process.env.GIT_REDIRECT_URL, // backend callback
     scope: 'read:user user:email',
     allow_signup: 'true',
   });
 
-  // Redirect user to GitHub OAuth page
   res.redirect(`https://github.com/login/oauth/authorize?${params.toString()}`);
 };
 
-// GitHub OAuth callback handler (exchange code for token & send JWT)
-exports.githubCallback = async (req, res, next) => {
-  try {
-    const code = req.query.code;
-    if (!code) return next(new CustomErr('Authorization code missing', 400));
+// 2️⃣ GitHub OAuth callback handler (exchange code → token → fetch user → send JWT)
+exports.githubCallback = asyncErrorHandler(async (req, res, next) => {
+  const code = req.query.code;
+  if (!code) return next(new CustomErr('Authorization code missing', 400));
 
-    // 1️⃣ Exchange code for access token
-    const tokenResponse = await axios.post(
-      'https://github.com/login/oauth/access_token',
-      {
-        client_id: process.env.GIT_CLIENT_ID,
-        client_secret: process.env.GIT_CLIENT_SECRET,
-        code,
-        redirect_uri: process.env.GIT_REDIRECT_URL,
-      },
-      { headers: { Accept: 'application/json' } }
-    );
+  // Exchange code for access token
+  const tokenResponse = await axios.post(
+    'https://github.com/login/oauth/access_token',
+    {
+      client_id: process.env.GIT_CLIENT_ID,
+      client_secret: process.env.GIT_CLIENT_SECRET,
+      code,
+      redirect_uri: process.env.GIT_REDIRECT_URL,
+    },
+    { headers: { Accept: 'application/json' } }
+  );
 
-    const accessToken = tokenResponse.data.access_token;
-    if (!accessToken) return next(new CustomErr('Failed to get access token', 400));
+  const accessToken = tokenResponse.data.access_token;
+  if (!accessToken) return next(new CustomErr('Failed to get access token', 400));
 
-    // 2️⃣ Fetch user info from GitHub
-    const userResponse = await axios.get('https://api.github.com/user', {
-      headers: { Authorization: `token ${accessToken}` },
+  // Fetch GitHub user info
+  const userResponse = await axios.get('https://api.github.com/user', {
+    headers: { Authorization: `token ${accessToken}` },
+  });
+  const emailResponse = await axios.get('https://api.github.com/user/emails', {
+    headers: { Authorization: `token ${accessToken}` },
+  });
+
+  const emails = emailResponse.data;
+  const primaryEmailObj = emails.find(email => email.primary) || emails[0];
+  const email = primaryEmailObj?.email;
+  if (!email) return next(new CustomErr('Email not found from GitHub', 400));
+
+  // Find or create user
+  let user = await User.findOne({ email });
+  if (!user) {
+    user = await User.create({
+      name: userResponse.data.name || userResponse.data.login,
+      email,
+      pic: userResponse.data.avatar_url,
+      password: crypto.randomBytes(32).toString('hex'),
+      active: true,
+      provider: 'github',
     });
-
-    const emailResponse = await axios.get('https://api.github.com/user/emails', {
-      headers: { Authorization: `token ${accessToken}` },
-    });
-
-    const emails = emailResponse.data;
-    const primaryEmailObj = emails.find(email => email.primary) || emails[0];
-    const email = primaryEmailObj?.email;
-
-    if (!email) return next(new CustomErr('Email not found from GitHub', 400));
-
-    // 3️⃣ Find or create user in your DB
-    let user = await User.findOne({ email });
-    if (!user) {
-      user = await User.create({
-        name: userResponse.data.name || userResponse.data.login,
-        email,
-        pic: userResponse.data.avatar_url,
-        password: crypto.randomBytes(32).toString('hex'),
-        active: true,
-        provider: 'github',
-      });
-    }
-
-    console.log('✅ GitHub login successful for:', email);
-
-    // 4️⃣ Send JWT & refresh token as JSON (like Google)
-    await createSendResponse(user, 200, res);
-  } catch (err) {
-    console.error('❌ GitHub login error:', err);
-    next(new CustomErr('Failed to authenticate with GitHub', 500));
   }
-};
 
-// Token-based GitHub login (frontend sends token, backend returns JWT)
-exports.githubTokenLogin = async (req, res, next) => {
+  console.log('✅ GitHub login successful for:', email);
+
+  // Send JWT & refresh token as cookies + JSON (like Google)
+  await createSendResponse(user, 200, res);
+});
+
+// 3️⃣ Token-based GitHub login (frontend sends GitHub token → backend returns JWT)
+exports.githubTokenLogin = asyncErrorHandler(async (req, res, next) => {
   const { token } = req.body;
   if (!token) return next(new CustomErr('GitHub token missing', 400));
 
-  try {
-    const userResponse = await axios.get('https://api.github.com/user', {
-      headers: { Authorization: `token ${token}` },
+  // Fetch GitHub user info
+  const userResponse = await axios.get('https://api.github.com/user', {
+    headers: { Authorization: `token ${token}` },
+  });
+  const emailResponse = await axios.get('https://api.github.com/user/emails', {
+    headers: { Authorization: `token ${token}` },
+  });
+
+  const emails = emailResponse.data;
+  const primaryEmailObj = emails.find(email => email.primary) || emails[0];
+  const email = primaryEmailObj?.email;
+  if (!email) return next(new CustomErr('GitHub token does not include an email', 400));
+
+  // Find or create user
+  let user = await User.findOne({ email });
+  if (!user) {
+    user = await User.create({
+      name: userResponse.data.name || userResponse.data.login,
+      email,
+      pic: userResponse.data.avatar_url,
+      password: crypto.randomBytes(32).toString('hex'),
+      active: true,
+      provider: 'github',
     });
-
-    const emailResponse = await axios.get('https://api.github.com/user/emails', {
-      headers: { Authorization: `token ${token}` },
-    });
-
-    const emails = emailResponse.data;
-    const primaryEmailObj = emails.find(email => email.primary) || emails[0];
-    const email = primaryEmailObj?.email;
-
-    if (!email) return next(new CustomErr('GitHub token provided does not include an email', 400));
-
-    let user = await User.findOne({ email });
-    if (!user) {
-      user = await User.create({
-        name: userResponse.data.name || userResponse.data.login,
-        email,
-        pic: userResponse.data.avatar_url,
-        password: crypto.randomBytes(32).toString('hex'),
-        active: true,
-        provider: 'github',
-      });
-    }
-
-    console.log('✅ GitHub token login successful for:', email);
-
-    // Send JWT & refresh token JSON to frontend
-    await createSendResponse(user, 200, res);
-  } catch (error) {
-    console.error('❌ GitHub token login error:', error);
-    next(new CustomErr('Failed to authenticate with GitHub token', 500));
   }
-};
 
+  console.log('✅ GitHub token login successful for:', email);
 
+  // Send JWT & refresh token as cookies + JSON
+  await createSendResponse(user, 200, res);
+});
 
 
 exports.googleTokenLogin = asyncErrorHandler(async (req, res, next) => {
