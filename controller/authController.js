@@ -2,7 +2,7 @@
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
-
+const { OAuth2Client } = require('google-auth-library');
 const CustomErr = require('../utils/CustomErr');
 const asyncErrorHandler = require('../utils/ErrorHandler');
 const sendEmail = require('../utils/Email');
@@ -10,6 +10,45 @@ const crypto = require('crypto');
 const util = require('util');
 const User = require('./../models/UserModel');
 const RefreshToken = require('./../models/RefreshTokenModel');
+
+
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+exports.googleTokenLogin = asyncErrorHandler(async (req, res, next) => {
+  const { token } = req.body;
+
+  if (!token) {
+    return next(new CustomErr('Google token missing', 400));
+  }
+
+  // Verify the token with Google
+  const ticket = await client.verifyIdToken({
+    idToken: token,
+    audience: process.env.GOOGLE_CLIENT_ID,
+  });
+
+  const payload = ticket.getPayload();
+  const { email, name, picture } = payload;
+
+  // Find existing user or create new
+  let user = await User.findOne({ email });
+
+  if (!user) {
+    user = await User.create({
+      email,
+      name,
+      pic: picture,
+      active: true, // already verified by Google
+      password: crypto.randomBytes(32).toString('hex'), // dummy password
+      confirmPassword: crypto.randomBytes(32).toString('hex'), // required by schema
+      role: 'student', // default role
+    });
+  }
+
+  // Send JWT and cookies
+  await createSendResponse(user, 200, res);
+});
 
 /**
  * Duration parser helper
