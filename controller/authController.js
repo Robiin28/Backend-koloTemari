@@ -31,56 +31,65 @@ exports.githubLogin = (req, res) => {
 };
 
 // 2️⃣ GitHub OAuth callback handler (exchange code → token → fetch user → send JWT)
-exports.githubCallback = asyncErrorHandler(async (req, res, next) => {
-  const code = req.query.code;
-  if (!code) return next(new CustomErr('Authorization code missing', 400));
+// controllers/authController.js
+exports.githubCallback = async (req, res, next) => {
+  try {
+    const code = req.query.code;
+    if (!code) return next(new CustomErr('Authorization code missing', 400));
 
-  // Exchange code for access token
-  const tokenResponse = await axios.post(
-    'https://github.com/login/oauth/access_token',
-    {
-      client_id: process.env.GIT_CLIENT_ID,
-      client_secret: process.env.GIT_CLIENT_SECRET,
-      code,
-      redirect_uri: process.env.GIT_REDIRECT_URL,
-    },
-    { headers: { Accept: 'application/json' } }
-  );
+    // Exchange code for GitHub token
+    const tokenResponse = await axios.post(
+      'https://github.com/login/oauth/access_token',
+      {
+        client_id: process.env.GIT_CLIENT_ID,
+        client_secret: process.env.GIT_CLIENT_SECRET,
+        code,
+        redirect_uri: process.env.GIT_REDIRECT_URL,
+      },
+      { headers: { Accept: 'application/json' } }
+    );
 
-  const accessToken = tokenResponse.data.access_token;
-  if (!accessToken) return next(new CustomErr('Failed to get access token', 400));
+    const accessToken = tokenResponse.data.access_token;
+    if (!accessToken) return next(new CustomErr('Failed to get access token', 400));
 
-  // Fetch GitHub user info
-  const userResponse = await axios.get('https://api.github.com/user', {
-    headers: { Authorization: `token ${accessToken}` },
-  });
-  const emailResponse = await axios.get('https://api.github.com/user/emails', {
-    headers: { Authorization: `token ${accessToken}` },
-  });
-
-  const emails = emailResponse.data;
-  const primaryEmailObj = emails.find(email => email.primary) || emails[0];
-  const email = primaryEmailObj?.email;
-  if (!email) return next(new CustomErr('Email not found from GitHub', 400));
-
-  // Find or create user
-  let user = await User.findOne({ email });
-  if (!user) {
-    user = await User.create({
-      name: userResponse.data.name || userResponse.data.login,
-      email,
-      pic: userResponse.data.avatar_url,
-      password: crypto.randomBytes(32).toString('hex'),
-      active: true,
-      provider: 'github',
+    // Fetch user info
+    const userResponse = await axios.get('https://api.github.com/user', {
+      headers: { Authorization: `token ${accessToken}` },
     });
+    const emailResponse = await axios.get('https://api.github.com/user/emails', {
+      headers: { Authorization: `token ${accessToken}` },
+    });
+    const emails = emailResponse.data;
+    const primaryEmailObj = emails.find(e => e.primary) || emails[0];
+    const email = primaryEmailObj?.email;
+
+    if (!email) return next(new CustomErr('Email not found', 400));
+
+    // Find or create user
+    let user = await User.findOne({ email });
+    if (!user) {
+      user = await User.create({
+        name: userResponse.data.name || userResponse.data.login,
+        email,
+        pic: userResponse.data.avatar_url,
+        password: crypto.randomBytes(32).toString('hex'),
+        active: true,
+        provider: 'github',
+      });
+    }
+
+    // Set JWT cookies
+    await createSendResponse(user, 200, res);
+
+    // Redirect back to signup page (or wherever you want)
+    res.redirect(`${process.env.FRONTEND_URL}/signup?login=github`);
+
+  } catch (err) {
+    console.error(err);
+    next(new CustomErr('GitHub login failed', 500));
   }
+};
 
-  console.log('✅ GitHub login successful for:', email);
-
-  // Send JWT & refresh token as cookies + JSON (like Google)
-  await createSendResponse(user, 200, res);
-});
 
 // 3️⃣ Token-based GitHub login (frontend sends GitHub token → backend returns JWT)
 exports.githubTokenLogin = asyncErrorHandler(async (req, res, next) => {
