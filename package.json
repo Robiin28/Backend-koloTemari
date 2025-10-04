@@ -19,6 +19,9 @@
         "nodemailer": "^6.9.14",
         "stripe": "^16.5.0",
         "validator": "^13.12.0"
+        "passport": "^0.6.0",
+        "passport-google-oauth20": "^2.0.0",
+        "express-session": "^1.17.3"
     },
     "description": "budjet tracker app",
     "scripts": {
