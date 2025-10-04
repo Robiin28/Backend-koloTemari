@@ -10,6 +10,12 @@ const router = express.Router();
 router.post('/validate', authController.validateEmail);
 router.get('/google', authController.googleLogin);
 router.get('/google/callback', authController.googleCallback);
+// git
+router.get('/github', authController.githubLogin);
+router.get('/github/callback', authController.githubCallback);
+
+// New POST route for token-based GitHub login
+router.post('/github/token-login', authController.githubTokenLogin);
 
 // New POST route for token-based Google login
 router.post('/google/token-login', authController.googleTokenLogin);
