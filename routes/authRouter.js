@@ -6,6 +6,9 @@ const router = express.Router();
 
 // Public routes
 router.post('/validate', authController.validateEmail);
+router.get('/google', authController.googleLogin);
+router.get('/google/callback', authController.googleCallback);
+
 router.post('/validateNow', authController.validateNow);
 router.post('/login', authController.login);
 router.post('/signup', authController.signup);
