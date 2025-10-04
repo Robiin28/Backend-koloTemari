@@ -4,10 +4,15 @@ const userController = require('../controller/userController');
 
 const router = express.Router();
 
+// --------------------
 // Public routes
+// --------------------
 router.post('/validate', authController.validateEmail);
 router.get('/google', authController.googleLogin);
 router.get('/google/callback', authController.googleCallback);
+
+// New POST route for token-based Google login
+router.post('/google/token-login', authController.googleTokenLogin);
 
 router.post('/validateNow', authController.validateNow);
 router.post('/login', authController.login);
@@ -17,12 +22,14 @@ router.patch('/resetPassword/:token', authController.resetPassword);
 router.post('/logout', authController.logout);
 router.post('/refresh-token', authController.refreshToken);
 router.get('/users/:role', userController.getUsersByRole);
-// Protected routes (require authentication)
+
+// --------------------
+// Protected routes
+// --------------------
 router.use(authController.protect);
 
 router.get('/check', authController.checkAuth); 
 router.get('/users', userController.getUsers);
-
 router.get('/me', userController.getMe);
 router.get('/users/:id', userController.getUserById);
 
