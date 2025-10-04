@@ -25,22 +25,24 @@ exports.googleTokenLogin = asyncErrorHandler(async (req, res, next) => {
     let payload;
 
     if (token.split('.').length === 3) {
-        // ID token
-        const ticket = await client.verifyIdToken({
-            idToken: token,
-            audience: process.env.GOOGLE_CLIENT_ID,
-        });
-        payload = ticket.getPayload();
+      // ID token
+      const ticket = await client.verifyIdToken({
+        idToken: token,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      payload = ticket.getPayload();
     } else if (token.startsWith('ya29')) {
-        // Access token
-        const { data } = await axios.get(`https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=${token}`);
-        payload = {
-            email: data.email,
-            name: data.name,
-            picture: data.picture,
-        };
+      // Access token
+      const { data } = await axios.get(
+        `https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=${token}`
+      );
+      payload = {
+        email: data.email,
+        name: data.name,
+        picture: data.picture,
+      };
     } else {
-        return next(new CustomErr('Invalid Google token', 400));
+      return next(new CustomErr('Invalid Google token', 400));
     }
 
     const { email, name, picture } = payload;
@@ -59,12 +61,15 @@ exports.googleTokenLogin = asyncErrorHandler(async (req, res, next) => {
     }
 
     console.log('✅ Google login successful for:', email);
+
+    // Send only your own JWTs, never Google token
     await createSendResponse(user, 200, res);
   } catch (err) {
     console.error('❌ Google login error:', err);
     return next(new CustomErr('Failed to authenticate with Google', 500));
   }
 });
+
 
 
 
