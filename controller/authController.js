@@ -18,26 +18,26 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 
 
-
 // Initiate GitHub login (redirect to GitHub)
 exports.githubLogin = (req, res) => {
   const params = new URLSearchParams({
     client_id: process.env.GIT_CLIENT_ID,
-    redirect_uri: process.env.GIT_REDIRECT_URL,
+    redirect_uri: process.env.GIT_REDIRECT_URL, // should point to your backend callback
     scope: 'read:user user:email',
     allow_signup: 'true',
   });
 
+  // Redirect user to GitHub OAuth page
   res.redirect(`https://github.com/login/oauth/authorize?${params.toString()}`);
 };
 
-// GitHub OAuth callback handler
+// GitHub OAuth callback handler (exchange code for token & send JWT)
 exports.githubCallback = async (req, res, next) => {
   try {
     const code = req.query.code;
     if (!code) return next(new CustomErr('Authorization code missing', 400));
 
-    // Exchange code for access token
+    // 1️⃣ Exchange code for access token
     const tokenResponse = await axios.post(
       'https://github.com/login/oauth/access_token',
       {
@@ -46,15 +46,13 @@ exports.githubCallback = async (req, res, next) => {
         code,
         redirect_uri: process.env.GIT_REDIRECT_URL,
       },
-      {
-        headers: { Accept: 'application/json' },
-      }
+      { headers: { Accept: 'application/json' } }
     );
 
     const accessToken = tokenResponse.data.access_token;
     if (!accessToken) return next(new CustomErr('Failed to get access token', 400));
 
-    // Fetch user info
+    // 2️⃣ Fetch user info from GitHub
     const userResponse = await axios.get('https://api.github.com/user', {
       headers: { Authorization: `token ${accessToken}` },
     });
@@ -69,8 +67,8 @@ exports.githubCallback = async (req, res, next) => {
 
     if (!email) return next(new CustomErr('Email not found from GitHub', 400));
 
+    // 3️⃣ Find or create user in your DB
     let user = await User.findOne({ email });
-
     if (!user) {
       user = await User.create({
         name: userResponse.data.name || userResponse.data.login,
@@ -84,6 +82,7 @@ exports.githubCallback = async (req, res, next) => {
 
     console.log('✅ GitHub login successful for:', email);
 
+    // 4️⃣ Send JWT & refresh token as JSON (like Google)
     await createSendResponse(user, 200, res);
   } catch (err) {
     console.error('❌ GitHub login error:', err);
@@ -91,7 +90,7 @@ exports.githubCallback = async (req, res, next) => {
   }
 };
 
-// Token-based GitHub login (exchange token for user info and login)
+// Token-based GitHub login (frontend sends token, backend returns JWT)
 exports.githubTokenLogin = async (req, res, next) => {
   const { token } = req.body;
   if (!token) return next(new CustomErr('GitHub token missing', 400));
@@ -112,7 +111,6 @@ exports.githubTokenLogin = async (req, res, next) => {
     if (!email) return next(new CustomErr('GitHub token provided does not include an email', 400));
 
     let user = await User.findOne({ email });
-
     if (!user) {
       user = await User.create({
         name: userResponse.data.name || userResponse.data.login,
@@ -126,6 +124,7 @@ exports.githubTokenLogin = async (req, res, next) => {
 
     console.log('✅ GitHub token login successful for:', email);
 
+    // Send JWT & refresh token JSON to frontend
     await createSendResponse(user, 200, res);
   } catch (error) {
     console.error('❌ GitHub token login error:', error);
