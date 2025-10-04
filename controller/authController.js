@@ -482,4 +482,20 @@ exports.checkAuth = asyncErrorHandler(async (req, res, next) => {
         user: req.user,
     });
 });
+exports.googleCallback = (req, res, next) => {
+  passport.authenticate('google', { failureRedirect: '/login', session: false }, async (err, user) => {
+    if (err || !user) {
+      return res.redirect('/login');
+    }
+    try {
+      // Send JWT as cookie and user data in response
+      await createSendResponse(user, 200, res);
+    } catch (e) {
+      return next(e);
+    }
+  })(req, res, next);
+}; 
+exports.googleLogin = passport.authenticate('google', {
+  scope: ['profile', 'email']
+});
 
