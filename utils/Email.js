@@ -1,31 +1,35 @@
 const nodemailer = require('nodemailer');
-const sendEmail = (option) => {
-   
+
+const sendEmail = async (option) => {
+  try {
+    // Create transporter
     const transporter = nodemailer.createTransport({
-        host: process.env.EMAIL_HOST,
-        port: process.env.EMAIL_PORT,
-        auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASSWORD
-        }
+      host: process.env.EMAIL_HOST,
+      port: Number(process.env.EMAIL_PORT),
+      secure: process.env.EMAIL_PORT == 465, // true for port 465, false for 587
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD,
+      },
     });
 
+    // Email options
     const emailOption = {
-        from: 'mineFlix support team <support@mineFlix.com',
-        to: option.email,
-        subject: option.subject,
-        text: option.message,
-        html: option.html 
-    }
+      from: 'KoloTemari team <KoolooTemari@gmail.com>', // fixed the < >
+      to: option.email,
+      subject: option.subject,
+      text: option.message,
+      html: option.html,
+    };
 
-    const response= transporter.sendMail(emailOption, (error, info )=>{
-        if (error) {
-            console.log(error, "errirdfdfd");  
-        }
-        else {
-             console.log("sdfdfdfd : ", info.response);
-        }
-       });
-      console.log("hello" ,response);
-}
-module.exports =sendEmail;
+    // Send email
+    const info = await transporter.sendMail(emailOption);
+    console.log('Email sent:', info.response);
+    return info;
+  } catch (error) {
+    console.error('Email failed:', error);
+    throw error;
+  }
+};
+
+module.exports = sendEmail;
