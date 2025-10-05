@@ -38,11 +38,12 @@ passport.use(new GitHubStrategy({
   },
   async (accessToken, refreshToken, profile, done) => {
     try {
-      let user = await User.findOne({ email: profile.emails?.[0]?.value });
+      let email = profile.emails?.[0]?.value || `github_${profile.id}@noemail.com`;
+      let user = await User.findOne({ email });
       if (!user) {
         user = await User.create({
           name: profile.username || profile.displayName,
-          email: profile.emails?.[0]?.value || null,
+          email,
           password: require('crypto').randomBytes(32).toString('hex'),
           active: true,
           provider: 'github',
