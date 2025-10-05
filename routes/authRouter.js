@@ -1,6 +1,7 @@
 const express = require('express');
 const authController = require('./../controller/authController');
 const userController = require('../controller/userController');
+const passport = require('passport');
 
 const router = express.Router();
 
@@ -10,9 +11,21 @@ const router = express.Router();
 router.post('/validate', authController.validateEmail);
 router.get('/google', authController.googleLogin);
 router.get('/google/callback', authController.googleCallback);
-// git
-router.get('/github', authController.githubLogin);
-router.get('/git/callback', authController.githubCallback);
+
+// GitHub OAuth
+router.get(
+  '/github',
+  passport.authenticate('github', { scope: ['user:email'] })
+);
+
+router.get(
+  '/git/callback',
+  passport.authenticate('github', {
+    failureRedirect: `${process.env.FRONTEND_URL}/oauth-error`,
+    successRedirect: `${process.env.FRONTEND_URL}/oauth-success`,
+    session: true, // maintain session if you need it
+  })
+);
 
 // New POST route for token-based GitHub login
 router.post('/github/token-login', authController.githubTokenLogin);
@@ -34,7 +47,7 @@ router.get('/users/:role', userController.getUsersByRole);
 // --------------------
 router.use(authController.protect);
 
-router.get('/check', authController.checkAuth); 
+router.get('/check', authController.checkAuth);
 router.get('/users', userController.getUsers);
 router.get('/me', userController.getMe);
 router.get('/users/:id', userController.getUserById);
