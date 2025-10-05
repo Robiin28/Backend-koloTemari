@@ -367,11 +367,8 @@ exports.signup = asyncErrorHandler(async (req, res, next) => {
 exports.validateEmail = asyncErrorHandler(async (req, res, next) => {
     const { email } = req.body;
 
-    // Bypass the pre(/^find/) middleware to include inactive users
+    // Find the user, bypass the active filter
     const user = await User.findOne({ email, ignoreActiveFilter: true });
-
-    console.log("Email received for validation request:", email);
-    console.log("User found:", user); // Debug: check if user exists
 
     if (!user) {
         return next(new CustomErr("Email not found. Please sign up first.", 404));
@@ -381,19 +378,20 @@ exports.validateEmail = asyncErrorHandler(async (req, res, next) => {
         return next(new CustomErr("Email is already validated.", 400));
     }
 
-    // Generate validation number and set expiration
+    // Generate validation number
     const validationNumber = user.generateAndEncryptValidationNumber();
-    user.validationNumberExpiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+    user.validationNumberExpiresAt = Date.now() + 10 * 60 * 1000; // 10 min
 
     await user.save({ validateBeforeSave: false });
 
     try {
         const message = `
             <h1>Email Validation Request</h1>
-            <p>Use this number to validate your account: ${validationNumber}</p>
+            <p>Use this number to validate your account: <b>${validationNumber}</b></p>
             <p>This link will expire in 10 minutes.</p>
         `;
 
+        // Send email
         await sendEmail({
             email: user.email,
             subject: 'Account Validation Number',
@@ -405,9 +403,7 @@ exports.validateEmail = asyncErrorHandler(async (req, res, next) => {
             message: 'Account validation number sent to user email.',
         });
     } catch (err) {
-        console.error("Error sending validation email:", err);
-
-        // Rollback validation info if email fails
+        // Rollback if email sending fails
         user.encryptedValidationNumber = undefined;
         user.validationNumberExpiresAt = undefined;
         await user.save({ validateBeforeSave: false });
@@ -415,6 +411,7 @@ exports.validateEmail = asyncErrorHandler(async (req, res, next) => {
         return next(new CustomErr('Error sending validation email. Please try again later.', 500));
     }
 });
+
 
 // ============================
 // Validate the validation number
