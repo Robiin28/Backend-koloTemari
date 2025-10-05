@@ -5,44 +5,35 @@ if (!process.env.MAILJET_API_KEY || !process.env.MAILJET_API_SECRET) {
   throw new Error('MAILJET_API_KEY or MAILJET_API_SECRET is missing in environment variables');
 }
 
-// Initialize Mailjet client correctly
-const mailjet = Mailjet.apiConnect(
-  process.env.MAILJET_API_KEY,
-  process.env.MAILJET_API_SECRET
-);
+// ✅ Correct way to initialize (works in all versions)
+const mailjet = Mailjet.apiConnect
+  ? Mailjet.apiConnect(process.env.MAILJET_API_KEY, process.env.MAILJET_API_SECRET)
+  : Mailjet.connect(process.env.MAILJET_API_KEY, process.env.MAILJET_API_SECRET);
 
 /**
  * Send email via Mailjet
- * @param {Object} param0
- * @param {string} param0.email - Recipient email
- * @param {string} param0.subject - Email subject
- * @param {string} param0.html - HTML content of email
  */
 const sendEmail = async ({ email, subject, html }) => {
   try {
     const request = await mailjet
-      .post("send", { version: "v3.1" })
+      .post('send', { version: 'v3.1' })
       .request({
         Messages: [
           {
             From: {
-              Email: "koolootemari@gmail.com", // ✅ VERIFIED sender email
-              Name: "Kooloo Temari",
+              Email: 'koolootemari@gmail.com', // ✅ must be verified
+              Name: 'Kooloo Temari',
             },
-            To: [
-              {
-                Email: email,
-              },
-            ],
+            To: [{ Email: email }],
             Subject: subject,
             HTMLPart: html,
           },
         ],
       });
 
-    console.log("✅ Email sent:", request.body);
+    console.log('✅ Email sent:', request.body);
   } catch (error) {
-    console.error("❌ Email sending failed:", error.statusCode || error);
+    console.error('❌ Email sending failed:', error.statusCode || error.message);
   }
 };
 
