@@ -213,7 +213,26 @@ exports.googleTokenLogin = asyncErrorHandler(async (req, res, next) => {
     console.log('✅ Google login successful for:', email);
 
     // Send only your own JWTs, never Google token
-    await createSendResponse(user, 200, res);
+    // await createSendResponse(user, 200, res);
+
+ const token = signToken(user._id);
+    const refreshToken = signRefreshToken(user._id);
+    await RefreshToken.createRefreshToken(user._id, refreshToken);
+
+    // 5️⃣ Set cookies (optional, frontend can use query params)
+    const accessCookieOptions = buildCookieOptions('access');
+    const refreshCookieOptions = buildCookieOptions('refresh');
+    res.cookie('jwt', token, accessCookieOptions);
+    res.cookie('refreshToken', refreshToken, refreshCookieOptions);
+
+    // 6️⃣ Redirect to frontend OAuth success page with tokens in query
+    const frontendOrigin = process.env.FRONTEND_URL; // e.g., http://localhost:3000
+    const redirectUrl = `${frontendOrigin}/oauth-success?token=${encodeURIComponent(token)}&refreshToken=${encodeURIComponent(refreshToken)}`;
+    
+    console.log('Redirecting to frontend with tokens:', redirectUrl); // For debugging
+    return res.redirect(redirectUrl);
+
+    
   } catch (err) {
     console.error('❌ Google login error:', err);
     return next(new CustomErr('Failed to authenticate with Google', 500));
