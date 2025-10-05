@@ -31,30 +31,6 @@ passport.use(new GoogleStrategy({
 ));
 
 // ---------------- GitHub Strategy ----------------
-passport.use(new GitHubStrategy({
-    clientID: process.env.GIT_CLIENT_ID,
-    clientSecret: process.env.GIT_CLIENT_SECRET,
-    callbackURL: process.env.GIT_REDIRECT_URL,
-  },
-  async (accessToken, refreshToken, profile, done) => {
-    try {
-      let email = profile.emails?.[0]?.value || `github_${profile.id}@noemail.com`;
-      let user = await User.findOne({ email });
-      if (!user) {
-        user = await User.create({
-          name: profile.username || profile.displayName,
-          email,
-          password: require('crypto').randomBytes(32).toString('hex'),
-          active: true,
-          provider: 'github',
-        });
-      }
-      done(null, user);
-    } catch (err) {
-      done(err, null);
-    }
-  }
-));
 
 // ---------------- Serialize / Deserialize ----------------
 passport.serializeUser((user, done) => done(null, user.id));
