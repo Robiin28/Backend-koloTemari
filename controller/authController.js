@@ -34,13 +34,7 @@ exports.githubLogin = (req, res) => {
 };
 
 
-const axios = require('axios');
-const crypto = require('crypto');
-const User = require('../models/userModel');
-const RefreshToken = require('../models/refreshTokenModel');
-const { signToken, signRefreshToken } = require('../utils/jwtUtils');
-const CustomErr = require('../utils/CustomErr');
-const { buildCookieOptions } = require('../utils/cookieUtils');
+
 
 exports.githubCallback = async (req, res, next) => {
   try {
