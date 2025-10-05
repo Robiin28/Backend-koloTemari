@@ -19,51 +19,54 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 
 // 1️⃣ Initiate GitHub login (redirect user to GitHub)
-exports.githubLogin = (req, res) => {
-  const params = new URLSearchParams({
-    client_id: process.env.GIT_CLIENT_ID,
-    redirect_uri: process.env.GIT_REDIRECT_URL, // backend callback
-    scope: 'read:user user:email',
-    allow_signup: 'true',
-  });
+// -----------------------------
+// 1️⃣ GitHub OAuth login (redirect user to GitHub)
+// -----------------------------
+exports.githubLogin = passport.authenticate('github', {
+  scope: ['user:email'],
+  session: false,
+});
 
-  res.redirect(`https://github.com/login/oauth/authorize?${params.toString()}`);
+// -----------------------------
+// 2️⃣ GitHub OAuth callback (optional if using token-login only)
+// -----------------------------
+exports.githubCallback = (req, res, next) => {
+  passport.authenticate('github', { failureRedirect: '/login', session: false }, async (err, user) => {
+    if (err || !user) {
+      return res.redirect('/login');
+    }
+    try {
+      // Send JWT as cookie and user data in response
+      await createSendResponse(user, 200, res);
+    } catch (e) {
+      return next(e);
+    }
+  })(req, res, next);
 };
 
-// 2️⃣ GitHub OAuth callback handler (exchange code → token → fetch user → send JWT)
-exports.githubCallback = async (req, res, next) => {
+// -----------------------------
+// 3️⃣ GitHub token login (frontend sends token directly)
+// -----------------------------
+exports.githubTokenLogin = asyncErrorHandler(async (req, res, next) => {
+  const { token } = req.body;
+
+  if (!token) return next(new CustomErr('GitHub token missing', 400));
+
   try {
-    const code = req.query.code;
-    if (!code) return next(new CustomErr('Authorization code missing', 400));
-
-    // Exchange code for GitHub token
-    const tokenResponse = await axios.post(
-      'https://github.com/login/oauth/access_token',
-      {
-        client_id: process.env.GIT_CLIENT_ID,
-        client_secret: process.env.GIT_CLIENT_SECRET,
-        code,
-        redirect_uri: process.env.GIT_REDIRECT_URL,
-      },
-      { headers: { Accept: 'application/json' } }
-    );
-
-    const accessToken = tokenResponse.data.access_token;
-    if (!accessToken) return next(new CustomErr('Failed to get access token', 400));
-
-    // Fetch user info
+    // Fetch GitHub user info
     const userResponse = await axios.get('https://api.github.com/user', {
-      headers: { Authorization: `token ${accessToken}` },
+      headers: { Authorization: `token ${token}` },
     });
+
     const emailResponse = await axios.get('https://api.github.com/user/emails', {
-      headers: { Authorization: `token ${accessToken}` },
+      headers: { Authorization: `token ${token}` },
     });
 
     const emails = emailResponse.data;
-    const primaryEmailObj = emails.find(e => e.primary) || emails[0];
+    const primaryEmailObj = emails.find(email => email.primary) || emails[0];
     const email = primaryEmailObj?.email;
 
-    if (!email) return next(new CustomErr('Email not found', 400));
+    if (!email) return next(new CustomErr('GitHub token does not include an email', 400));
 
     // Find or create user
     let user = await User.findOne({ email });
@@ -78,58 +81,14 @@ exports.githubCallback = async (req, res, next) => {
       });
     }
 
-    // ✅ Set JWT cookies
-    const token = signToken(user._id);
-    const refreshToken = signRefreshToken(user._id);
-    await RefreshToken.createRefreshToken(user._id, refreshToken);
+    console.log('✅ GitHub token login successful for:', email);
 
-    res.cookie('jwt', token, buildCookieOptions('access'));
-    res.cookie('refreshToken', refreshToken, buildCookieOptions('refresh'));
-
-    // ✅ Redirect to frontend success page instead of sending JSON
-    res.redirect(`${process.env.FRONTEND_URL}/oauth-success`);
+    // Send JWT & refresh token cookies + JSON response
+    await createSendResponse(user, 200, res);
   } catch (err) {
-    console.error(err);
-    next(new CustomErr('GitHub login failed', 500));
+    console.error('❌ GitHub token login error:', err);
+    return next(new CustomErr('Failed to authenticate with GitHub', 500));
   }
-};
-
-
-// 3️⃣ Token-based GitHub login (frontend sends GitHub token → backend returns JWT)
-exports.githubTokenLogin = asyncErrorHandler(async (req, res, next) => {
-  const { token } = req.body;
-  if (!token) return next(new CustomErr('GitHub token missing', 400));
-
-  // Fetch GitHub user info
-  const userResponse = await axios.get('https://api.github.com/user', {
-    headers: { Authorization: `token ${token}` },
-  });
-  const emailResponse = await axios.get('https://api.github.com/user/emails', {
-    headers: { Authorization: `token ${token}` },
-  });
-
-  const emails = emailResponse.data;
-  const primaryEmailObj = emails.find(email => email.primary) || emails[0];
-  const email = primaryEmailObj?.email;
-  if (!email) return next(new CustomErr('GitHub token does not include an email', 400));
-
-  // Find or create user
-  let user = await User.findOne({ email });
-  if (!user) {
-    user = await User.create({
-      name: userResponse.data.name || userResponse.data.login,
-      email,
-      pic: userResponse.data.avatar_url,
-      password: crypto.randomBytes(32).toString('hex'),
-      active: true,
-      provider: 'github',
-    });
-  }
-
-  console.log('✅ GitHub token login successful for:', email);
-
-  // Send JWT & refresh token as cookies + JSON
-  await createSendResponse(user, 200, res);
 });
 
 
