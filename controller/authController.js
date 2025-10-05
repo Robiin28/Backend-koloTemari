@@ -32,12 +32,15 @@ exports.githubLogin = (req, res) => {
 
   res.redirect(`https://github.com/login/oauth/authorize?${params.toString()}`);
 };
+// controllers/authController.js
+
 exports.githubCallback = async (req, res, next) => {
   try {
     const { code, error, error_description } = req.query;
 
     if (error) {
-      const redirectUrl = `${process.env.FRONTEND_URL}/signin?error=${encodeURIComponent(error_description || error)}`;
+      // Redirect to frontend signin or error page with error info
+      const redirectUrl = `/signin?error=${encodeURIComponent(error_description || error)}`;
       return res.redirect(redirectUrl);
     }
 
@@ -45,7 +48,7 @@ exports.githubCallback = async (req, res, next) => {
       return res.status(400).send('GitHub authorization failed: missing code parameter');
     }
 
-    // Exchange code for access token
+    // 1️⃣ Exchange code for access token
     const tokenResponse = await axios.post(
       'https://github.com/login/oauth/access_token',
       {
@@ -58,9 +61,11 @@ exports.githubCallback = async (req, res, next) => {
     );
 
     const accessToken = tokenResponse.data.access_token;
-    if (!accessToken) return res.status(400).send('Failed to get access token from GitHub');
+    if (!accessToken) {
+      return res.status(400).send('Failed to get access token from GitHub');
+    }
 
-    // Fetch user info
+    // 2️⃣ Fetch user info from GitHub
     const userResponse = await axios.get('https://api.github.com/user', {
       headers: { Authorization: `token ${accessToken}` },
     });
@@ -73,9 +78,11 @@ exports.githubCallback = async (req, res, next) => {
     const primaryEmailObj = emails.find(email => email.primary) || emails[0];
     const email = primaryEmailObj?.email;
 
-    if (!email) return res.status(400).send('Email not found from GitHub');
+    if (!email) {
+      return res.status(400).send('Email not found from GitHub');
+    }
 
-    // Find or create user
+    // 3️⃣ Create or find the user in your DB
     let user = await User.findOne({ email });
     if (!user) {
       user = await User.create({
@@ -88,22 +95,31 @@ exports.githubCallback = async (req, res, next) => {
       });
     }
 
-    // ✅ Create your JWT tokens
+    console.log('✅ GitHub login successful for:', email);
+
+    // 4️⃣ Create JWTs & save refresh token in DB
     const token = signToken(user._id);
     const refreshToken = signRefreshToken(user._id);
-
-    // Save refresh token in DB
     await RefreshToken.createRefreshToken(user._id, refreshToken);
 
-    // Redirect to frontend OAuth success page with tokens
-    const frontendRedirect = `${process.env.FRONTEND_URL}/oauth-success?token=${token}&refreshToken=${refreshToken}`;
-    return res.redirect(frontendRedirect);
+    // 5️⃣ Set cookies (optional, frontend uses query params)
+    const accessCookieOptions = buildCookieOptions('access');
+    const refreshCookieOptions = buildCookieOptions('refresh');
+    res.cookie('jwt', token, accessCookieOptions);
+    res.cookie('refreshToken', refreshToken, refreshCookieOptions);
+
+    // 6️⃣ Redirect to frontend OAuth success page with tokens in query
+    const frontendOrigin = process.env.FRONTEND_URL; // e.g., http://localhost:3000
+    return res.redirect(
+      `${frontendOrigin}/oauth-success?token=${encodeURIComponent(token)}&refreshToken=${encodeURIComponent(refreshToken)}`
+    );
 
   } catch (err) {
-    console.error('GitHub callback error:', err);
-    return res.redirect(`${process.env.FRONTEND_URL}/signin?error=GitHub login failed`);
+    console.error('❌ GitHub login error:', err);
+    next(new CustomErr('Failed to authenticate with GitHub', 500));
   }
 };
+
 
 
 
