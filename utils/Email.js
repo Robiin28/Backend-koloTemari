@@ -6,7 +6,7 @@ if (!process.env.MAILJET_API_KEY || !process.env.MAILJET_API_SECRET) {
 }
 
 // Initialize Mailjet client correctly
-const mailjet = Mailjet.connect(
+const mailjet = Mailjet.apiConnect(
   process.env.MAILJET_API_KEY,
   process.env.MAILJET_API_SECRET
 );
@@ -26,13 +26,13 @@ const sendEmail = async ({ email, subject, html }) => {
         Messages: [
           {
             From: {
-              Email: "koolootemari@example.com", // Replace with verified sender email
-              Name: "Kooloo Temari"
+              Email: "koolootemari@gmail.com", // ✅ VERIFIED sender email
+              Name: "Kooloo Temari",
             },
             To: [
               {
                 Email: email,
-              }
+              },
             ],
             Subject: subject,
             HTMLPart: html,
@@ -42,8 +42,7 @@ const sendEmail = async ({ email, subject, html }) => {
 
     console.log("✅ Email sent:", request.body);
   } catch (error) {
-    console.error("❌ Email sending failed:", error);
-    throw error;
+    console.error("❌ Email sending failed:", error.statusCode || error);
   }
 };
 
