@@ -4,7 +4,7 @@ const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const session = require('express-session');
 const passport = require('passport');
-
+const router = express.Router();
 const authRouter = require('./routes/authRouter');
 const courseRouter = require('./routes/courseRoute');
 const lessonRouter = require('./routes/lessonRoute');
@@ -104,8 +104,8 @@ app.use('/api/course/:courseId/section', sectionRouter);
 app.use('/api/course/lesson/:lessonId/quiz', quizRouter);
 app.use('/api/cart', cartRouter);
 
-app.get('/session', (req, res) => {
-  res.redirect('/signin');
+router.get('/session', (req, res) => {
+  res.redirect('/api/auth/signin');
 });-------------------------
 // Handle undefined routes
 // ----------------------------
