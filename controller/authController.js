@@ -166,127 +166,44 @@ exports.githubTokenLogin = async (req, res, next) => {
 };
 
 
-// exports.googleTokenLogin = asyncErrorHandler(async (req, res, next) => {
-//   const { token } = req.body;
+exports.googleTokenLogin = asyncErrorHandler(async (req, res, next) => {
+  const { token } = req.body;
 
-//   if (!token) return next(new CustomErr('Google token missing', 400));
+  if (!token) return next(new CustomErr('Google token missing', 400));
 
-//   try {
-//     let payload;
-
-//     if (token.split('.').length === 3) {
-//       // ID token
-//       const ticket = await client.verifyIdToken({
-//         idToken: token,
-//         audience: process.env.GOOGLE_CLIENT_ID,
-//       });
-//       payload = ticket.getPayload();
-//     } else if (token.startsWith('ya29')) {
-//       // Access token
-//       const { data } = await axios.get(
-//         `https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=${token}`
-//       );
-//       payload = {
-//         email: data.email,
-//         name: data.name,
-//         picture: data.picture,
-//       };
-//     } else {
-//       return next(new CustomErr('Invalid Google token', 400));
-//     }
-
-//     const { email, name, picture } = payload;
-
-//     let user = await User.findOne({ email });
-
-//     if (!user) {
-//       user = await User.create({
-//         name,
-//         email,
-//         pic: picture,
-//         password: crypto.randomBytes(32).toString('hex'),
-//         active: true,
-//         provider: 'google',
-//       });
-//     }
-
-//     console.log('✅ Google login successful for:', email);
-
-//     // Send only your own JWTs, never Google token
-//     // await createSendResponse(user, 200, res);
-
-//  const token = signToken(user._id);
-//     const refreshToken = signRefreshToken(user._id);
-//     await RefreshToken.createRefreshToken(user._id, refreshToken);
-
-//     // 5️⃣ Set cookies (optional, frontend can use query params)
-//     const accessCookieOptions = buildCookieOptions('access');
-//     const refreshCookieOptions = buildCookieOptions('refresh');
-//     res.cookie('jwt', token, accessCookieOptions);
-//     res.cookie('refreshToken', refreshToken, refreshCookieOptions);
-
-//     // 6️⃣ Redirect to frontend OAuth success page with tokens in query
-//     const frontendOrigin = process.env.FRONTEND_URL; // e.g., http://localhost:3000
-//     const redirectUrl = `${frontendOrigin}/oauth-success?token=${encodeURIComponent(token)}&refreshToken=${encodeURIComponent(refreshToken)}`;
-    
-//     console.log('Redirecting to frontend with tokens:', redirectUrl); // For debugging
-//     return res.redirect(redirectUrl);
-
-    
-//   } catch (err) {
-//     console.error('❌ Google login error:', err);
-//     return next(new CustomErr('Failed to authenticate with Google', 500));
-//   }
-// });
-
-exports.googleCallback = async (req, res, next) => {
   try {
-    const { code, error, error_description } = req.query;
+    let payload;
 
-    if (error) {
-      const redirectUrl = `/signin?error=${encodeURIComponent(error_description || error)}`;
-      return res.redirect(redirectUrl);
+    if (token.split('.').length === 3) {
+      // ID token
+      const ticket = await client.verifyIdToken({
+        idToken: token,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      payload = ticket.getPayload();
+    } else if (token.startsWith('ya29')) {
+      // Access token
+      const { data } = await axios.get(
+        `https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=${token}`
+      );
+      payload = {
+        email: data.email,
+        name: data.name,
+        picture: data.picture,
+      };
+    } else {
+      return next(new CustomErr('Invalid Google token', 400));
     }
 
-    if (!code) {
-      return res.status(400).send('Google authorization failed: missing code parameter');
-    }
+    const { email, name, picture } = payload;
 
-    // 1️⃣ Exchange code for access token
-    const tokenResponse = await axios.post(
-      'https://oauth2.googleapis.com/token',
-      {
-        client_id: process.env.GOOGLE_CLIENT_ID,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET,
-        code,
-        grant_type: 'authorization_code',
-        redirect_uri: process.env.GOOGLE_REDIRECT_URL,
-      },
-      { headers: { 'Content-Type': 'application/json' } }
-    );
-
-    const accessToken = tokenResponse.data.access_token;
-    if (!accessToken) {
-      return res.status(400).send('Failed to get access token from Google');
-    }
-
-    // 2️⃣ Fetch user info from Google
-    const userResponse = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-
-    const email = userResponse.data.email;
-    if (!email) {
-      return res.status(400).send('Email not found from Google');
-    }
-
-    // 3️⃣ Create or find the user in DB
     let user = await User.findOne({ email });
+
     if (!user) {
       user = await User.create({
-        name: userResponse.data.name || userResponse.data.given_name,
+        name,
         email,
-        pic: userResponse.data.picture,
+        pic: picture,
         password: crypto.randomBytes(32).toString('hex'),
         active: true,
         provider: 'google',
@@ -295,28 +212,17 @@ exports.googleCallback = async (req, res, next) => {
 
     console.log('✅ Google login successful for:', email);
 
-    // 4️⃣ Create JWT & Refresh Token
-    const token = signToken(user._id);
-    const refreshToken = signRefreshToken(user._id);
-    await RefreshToken.createRefreshToken(user._id, refreshToken);
+    // Send only your own JWTs, never Google token
+    await createSendResponse(user, 200, res);
 
-    // 5️⃣ Set cookies (optional)
-    const accessCookieOptions = buildCookieOptions('access');
-    const refreshCookieOptions = buildCookieOptions('refresh');
-    res.cookie('jwt', token, accessCookieOptions);
-    res.cookie('refreshToken', refreshToken, refreshCookieOptions);
 
-    // 6️⃣ Redirect to frontend success page with tokens
-    const frontendOrigin = process.env.FRONTEND_URL;
-    return res.redirect(
-      `${frontendOrigin}/oauth-success?token=${encodeURIComponent(token)}&refreshToken=${encodeURIComponent(refreshToken)}`
-    );
-
+    
   } catch (err) {
     console.error('❌ Google login error:', err);
-    next(new CustomErr('Failed to authenticate with Google', 500));
+    return next(new CustomErr('Failed to authenticate with Google', 500));
   }
-};
+});
+
 
 
 
