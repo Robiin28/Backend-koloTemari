@@ -21,19 +21,8 @@ router.get(
   passport.authenticate('github', { scope: ['user:email'], session: false })
 );
 
-router.get(
-  '/github/callback',
-  passport.authenticate('github', {
-    failureRedirect: `${process.env.FRONTEND_URL}/oauth-error`,
-    session: false
-  }),
-  (req, res) => {
-    // Successful login
-    res.redirect(`${process.env.FRONTEND_URL}/oauth-success`);
-  }
-);
 // Google callback route
-
+router.get('/github/callback', authController.githubCallback);
 // --------------------
 // Token-based login routes --------------------
 router.post('/github/token-login', authController.githubTokenLogin);
