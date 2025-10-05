@@ -371,8 +371,10 @@ exports.validateEmail = asyncErrorHandler(async (req, res, next) => {
     console.log("📝 Email received for validation request:", email);
 
     // Check if user exists in DB
-    const user = await User.findOne({ email });
-
+  
+const user = await User.findOne({ email, ignoreActiveFilter: true });
+console.log("Email received for validation request:", email);
+console.log("User found:", user);
     if (!user) {
         console.log("❌ User not found for email:", email);
         return next(new CustomErr("Email not found. Please sign up first.", 400));
