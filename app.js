@@ -103,7 +103,10 @@ app.use('/api/submissions', submissionRouter);
 app.use('/api/course/:courseId/section', sectionRouter);
 app.use('/api/course/lesson/:lessonId/quiz', quizRouter);
 app.use('/api/cart', cartRouter);
-
+router.get('/session', (req, res) => {
+  // Redirect to your frontend sign-in page or error handling page
+  res.redirect('/signin');
+});
 // ----------------------------
 // Handle undefined routes
 // ----------------------------
