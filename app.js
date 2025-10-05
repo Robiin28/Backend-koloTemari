@@ -40,22 +40,22 @@ app.use(cors({
 }));
 // 
 // 
-app.set('trust proxy', 1); // <--- add this above session (important for Render HTTPS)
+// app.set('trust proxy', 1); // <--- add this above session (important for Render HTTPS)
 
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'your-session-secret',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // true on Render
-    sameSite: 'none', // critical for cross-domain + mobile
-    maxAge: 24 * 60 * 60 * 1000, // optional, 1 day
-  },
-}));
-// 3️⃣ Initialize Passport AFTER session middleware
-app.use(passport.initialize());
-app.use(passport.session());
+// app.use(session({
+//   secret: process.env.SESSION_SECRET || 'your-session-secret',
+//   resave: false,
+//   saveUninitialized: false,
+//   cookie: {
+//     httpOnly: true,
+//     secure: process.env.NODE_ENV === 'production', // true on Render
+//     sameSite: 'none', // critical for cross-domain + mobile
+//     maxAge: 24 * 60 * 60 * 1000, // optional, 1 day
+//   },
+// }));
+// // 3️⃣ Initialize Passport AFTER session middleware
+// app.use(passport.initialize());
+// app.use(passport.session());
 
 // ----------------------------
 // Middleware
