@@ -17,19 +17,23 @@ router.get('/google/callback', authController.googleCallback);
 // --------------------
 // GitHub OAuth --------------------
 router.get(
-  '/github',
-  passport.authenticate('github', { scope: ['user:email'] })
-);
-
-
-
-router.get(
   '/git/callback',
   passport.authenticate('github', {
-    failureRedirect: `${process.env.FRONTEND_URL}/oauth-error`
+    failureRedirect: `${process.env.FRONTEND_URL}/oauth-error`,
+    session: false  // <-- disable backend session
   }),
   (req, res) => {
-    // Successful login
+    res.redirect(`${process.env.FRONTEND_URL}/oauth-success`);
+  }
+);
+// Google callback route
+router.get(
+  '/google/callback',
+  passport.authenticate('google', {
+    failureRedirect: `${process.env.FRONTEND_URL}/oauth-error`,
+    session: false  // <-- disable backend session
+  }),
+  (req, res) => {
     res.redirect(`${process.env.FRONTEND_URL}/oauth-success`);
   }
 );
