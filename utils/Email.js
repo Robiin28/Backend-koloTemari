@@ -1,38 +1,38 @@
-// utils/Email.js
 const Mailjet = require('node-mailjet');
 
-const mailjet = Mailjet.connect(
-  process.env.MJ_APIKEY_PUBLIC,
-  process.env.MJ_APIKEY_PRIVATE
+if (!process.env.MAILJET_API_KEY || !process.env.MAILJET_API_SECRET) {
+  throw new Error('Mailjet API_KEY or API_SECRET is missing');
+}
+
+const mailjet = Mailjet.apiConnect(
+  process.env.MAILJET_API_KEY,
+  process.env.MAILJET_API_SECRET
 );
 
-/**
- * Send an email via Mailjet
- * @param {Object} options - { email, subject, html }
- */
 const sendEmail = async ({ email, subject, html }) => {
   try {
-    const request = mailjet
-      .post('send', { version: 'v3.1' })
+    await mailjet
+      .post("send", { version: "v3.1" })
       .request({
         Messages: [
           {
             From: {
-              Email: 'KoolooTemari@gmail.com',
-              Name: 'KoloTemari Team',
+              Email: "koolootemari@example.com", // your sender email
+              Name: "Kooloo Temari"
             },
-            To: [{ Email: email }],
+            To: [
+              {
+                Email: email,
+              }
+            ],
             Subject: subject,
-            HTMLPart: html, // HTML content goes here
+            HTMLPart: html,
           },
         ],
       });
-
-    const result = await request;
-    console.log('✅ Email sent:', result.body);
-    return result.body;
+    console.log("✅ Email sent to", email);
   } catch (err) {
-    console.error('❌ Email failed:', err);
+    console.error("❌ Email send error:", err);
     throw err;
   }
 };
