@@ -16,12 +16,11 @@ router.get('/google/callback', authController.googleCallback);
 
 // --------------------
 // GitHub OAuth --------------------
-router.get(
-  '/github',
+router.get('/github', authController.githubLogin);
   // passport.authenticate('github', { scope: ['user:email'], session: false }
-              authController.githubLogin          
+                      
                        )
-);
+
 
 // Google callback route
 router.get('/github/callback', authController.githubCallback);
