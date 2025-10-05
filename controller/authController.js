@@ -34,14 +34,20 @@ exports.githubLogin = (req, res) => {
 };
 
 
-
+const axios = require('axios');
+const crypto = require('crypto');
+const User = require('../models/userModel');
+const RefreshToken = require('../models/refreshTokenModel');
+const { signToken, signRefreshToken } = require('../utils/jwtUtils');
+const CustomErr = require('../utils/CustomErr');
+const { buildCookieOptions } = require('../utils/cookieUtils');
 
 exports.githubCallback = async (req, res, next) => {
   try {
     const code = req.query.code;
     if (!code) return next(new CustomErr('Authorization code missing', 400));
 
-    // Exchange code for access token
+    // 1️⃣ Exchange code for access token
     const tokenResponse = await axios.post(
       'https://github.com/login/oauth/access_token',
       {
@@ -56,7 +62,7 @@ exports.githubCallback = async (req, res, next) => {
     const accessToken = tokenResponse.data.access_token;
     if (!accessToken) return next(new CustomErr('Failed to get access token', 400));
 
-    // Fetch user info
+    // 2️⃣ Fetch user info from GitHub
     const userResponse = await axios.get('https://api.github.com/user', {
       headers: { Authorization: `token ${accessToken}` },
     });
@@ -70,7 +76,7 @@ exports.githubCallback = async (req, res, next) => {
     const email = primaryEmailObj?.email;
     if (!email) return next(new CustomErr('Email not found from GitHub', 400));
 
-    // Find or create user in DB
+    // 3️⃣ Find or create user in DB
     let user = await User.findOne({ email });
     if (!user) {
       user = await User.create({
@@ -83,42 +89,39 @@ exports.githubCallback = async (req, res, next) => {
       });
     }
 
-    // Create JWTs (no cookies needed)
+    // 4️⃣ Create JWTs & cookies
     const token = signToken(user._id);
     const refreshToken = signRefreshToken(user._id);
 
     await RefreshToken.createRefreshToken(user._id, refreshToken);
 
-    // Send HTML page with postMessage
-    const frontendOrigin = process.env.FRONTEND_URL; // e.g., https://yourfrontend.com
+    const accessCookieOptions = buildCookieOptions('access');
+    const refreshCookieOptions = buildCookieOptions('refresh');
+
+    res.cookie('jwt', token, accessCookieOptions);
+    res.cookie('refreshToken', refreshToken, refreshCookieOptions);
+
+    // 5️⃣ Send token to original tab via postMessage and close popup
+    const frontendOrigin = process.env.FRONTEND_URL; // must match your frontend origin exactly
     const html = `
-      <!doctype html>
-      <html>
-        <head><meta charset="utf-8"><title>OAuth Success</title></head>
-        <body>
-          <h1>Login Successful!</h1>
-          <h2>Token: ${token}</h2> <!-- just for testing -->
-          <p>Please click the button below to return to the app.</p>
-          <button id="sendToken">Return to App</button>
-          <script>
-            const btn = document.getElementById('sendToken');
-            btn.onclick = function() {
-              const payload = {
-                type: 'OAUTH_SUCCESS',
-                token: ${JSON.stringify(token)},
-                refreshToken: ${JSON.stringify(refreshToken)}
-              };
-              if (window.opener) {
-                window.opener.postMessage(payload, ${JSON.stringify(frontendOrigin)});
-              }
-              window.close();
-            };
-          </script>
-        </body>
-      </html>
+      <script>
+        try {
+          const payload = {
+            token: "${token}",
+            refreshToken: "${refreshToken}"
+          };
+          if (window.opener) {
+            window.opener.postMessage(payload, "${frontendOrigin}");
+            window.close();
+          } else {
+            document.body.innerText = "OAuth completed. Please return to the app.";
+          }
+        } catch(e) {
+          document.body.innerText = "Error sending OAuth tokens.";
+        }
+      </script>
     `;
     res.send(html);
-
   } catch (err) {
     console.error('❌ GitHub login error:', err);
     next(new CustomErr('Failed to authenticate with GitHub', 500));
