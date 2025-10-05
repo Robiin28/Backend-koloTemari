@@ -13,14 +13,14 @@ passport.use(new GoogleStrategy({
   },
   async (accessToken, refreshToken, profile, done) => {
     try {
-      let user = await User.findOne({ googleId: profile.id });
-      if (!user) user = await User.findOne({ email: profile.emails[0].value });
+      let user = await User.findOne({ email: profile.emails[0].value });
       if (!user) {
         user = await User.create({
-          googleId: profile.id,
           name: profile.displayName,
           email: profile.emails[0].value,
-          active: true
+          password: require('crypto').randomBytes(32).toString('hex'),
+          active: true,
+          provider: 'google',
         });
       }
       done(null, user);
@@ -38,14 +38,14 @@ passport.use(new GitHubStrategy({
   },
   async (accessToken, refreshToken, profile, done) => {
     try {
-      let user = await User.findOne({ githubId: profile.id });
-      if (!user) user = await User.findOne({ email: profile.emails?.[0]?.value });
+      let user = await User.findOne({ email: profile.emails?.[0]?.value });
       if (!user) {
         user = await User.create({
-          githubId: profile.id,
           name: profile.username || profile.displayName,
           email: profile.emails?.[0]?.value || null,
-          active: true
+          password: require('crypto').randomBytes(32).toString('hex'),
+          active: true,
+          provider: 'github',
         });
       }
       done(null, user);
@@ -65,7 +65,5 @@ passport.deserializeUser(async (id, done) => {
     done(err, null);
   }
 });
-
-
 
 module.exports = passport;
