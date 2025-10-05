@@ -32,19 +32,12 @@ exports.githubLogin = (req, res) => {
 
   res.redirect(`https://github.com/login/oauth/authorize?${params.toString()}`);
 };
-
-exports.githubCallback = async (req, res, next) => {
+exports.githubCallback = async (req, res) => {
   const frontendOrigin = process.env.FRONTEND_URL || 'http://localhost:3000';
 
   try {
     const code = req.query.code;
-
-    if (!code) {
-      // Redirect to frontend error page instead of sending JSON
-      return res.redirect(
-        `${frontendOrigin}/oauth-error?message=${encodeURIComponent('Authorization code missing or invalid')}`
-      );
-    }
+    if (!code) throw new Error('Authorization code missing or invalid');
 
     // 1️⃣ Exchange code for access token
     const tokenResponse = await axios.post(
@@ -59,11 +52,7 @@ exports.githubCallback = async (req, res, next) => {
     );
 
     const accessToken = tokenResponse.data.access_token;
-    if (!accessToken) {
-      return res.redirect(
-        `${frontendOrigin}/oauth-error?message=${encodeURIComponent('Failed to get access token from GitHub')}`
-      );
-    }
+    if (!accessToken) throw new Error('Failed to get access token from GitHub');
 
     // 2️⃣ Fetch user info from GitHub
     const userResponse = await axios.get('https://api.github.com/user', {
@@ -77,14 +66,9 @@ exports.githubCallback = async (req, res, next) => {
     const emails = emailResponse.data;
     const primaryEmailObj = emails.find(email => email.primary) || emails[0];
     const email = primaryEmailObj?.email;
+    if (!email) throw new Error('Email not found from GitHub');
 
-    if (!email) {
-      return res.redirect(
-        `${frontendOrigin}/oauth-error?message=${encodeURIComponent('Email not found from GitHub')}`
-      );
-    }
-
-    // 3️⃣ Find or create user in DB
+    // 3️⃣ Find or create user
     let user = await User.findOne({ email });
     if (!user) {
       user = await User.create({
@@ -97,29 +81,25 @@ exports.githubCallback = async (req, res, next) => {
       });
     }
 
-    console.log('✅ GitHub login successful for:', email);
-
-    // 4️⃣ Create JWTs & cookies
+    // 4️⃣ Create JWTs and cookies
     const token = signToken(user._id);
     const refreshToken = signRefreshToken(user._id);
     await RefreshToken.createRefreshToken(user._id, refreshToken);
 
     const accessCookieOptions = buildCookieOptions('access');
     const refreshCookieOptions = buildCookieOptions('refresh');
-
     res.cookie('jwt', token, accessCookieOptions);
     res.cookie('refreshToken', refreshToken, refreshCookieOptions);
 
-    // 5️⃣ Redirect to frontend success page with tokens
+    // 5️⃣ Redirect to frontend success page
     return res.redirect(
       `${frontendOrigin}/oauth-success?token=${encodeURIComponent(token)}&refreshToken=${encodeURIComponent(refreshToken)}`
     );
+
   } catch (err) {
     console.error('❌ GitHub login error:', err);
-
-    // Redirect to frontend error page on any error
     return res.redirect(
-      `${frontendOrigin}/oauth-error?message=${encodeURIComponent('Failed to authenticate with GitHub')}`
+      `${frontendOrigin}/oauth-error?message=${encodeURIComponent(err.message || 'Failed to authenticate with GitHub')}`
     );
   }
 };
