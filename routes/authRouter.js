@@ -21,18 +21,18 @@ router.get(
   passport.authenticate('github', { scope: ['user:email'] })
 );
 
+
+
 router.get(
-  '/github/callback',
+  '/git/callback',
   passport.authenticate('github', {
-    failureRedirect: `${FRONTEND_URL}/oauth-error`,
-    session: true, // keep session if needed
+    failureRedirect: `${process.env.FRONTEND_URL}/oauth-error`
   }),
   (req, res) => {
-    // Successful login, redirect to frontend success page
-    res.redirect(`${FRONTEND_URL}/oauth-success`);
+    // Successful login
+    res.redirect(`${process.env.FRONTEND_URL}/oauth-success`);
   }
 );
-
 // --------------------
 // Token-based login routes --------------------
 router.post('/github/token-login', authController.githubTokenLogin);
