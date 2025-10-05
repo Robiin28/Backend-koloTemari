@@ -361,46 +361,34 @@ exports.signup = asyncErrorHandler(async (req, res, next) => {
 // ============================
 // Email validation request handler
 // ============================
+// ============================
+// Email validation request handler (DEBUG MODE)
+// ============================
 exports.validateEmail = asyncErrorHandler(async (req, res, next) => {
     const { email } = req.body;
+
+    // Log the email received
+    console.log("📝 Email received for validation request:", email);
+
+    // Check if user exists in DB
     const user = await User.findOne({ email });
 
     if (!user) {
-        return next(new CustomErr("Email not found. Please sign up first.", 404));
+        console.log("❌ User not found for email:", email);
+        return next(new CustomErr("Email not found. Please sign up first.", 400));
     }
 
     if (user.active) {
+        console.log("ℹ️ Email already validated:", email);
         return next(new CustomErr("Email is already validated.", 400));
     }
 
-    const validationNumber = user.generateAndEncryptValidationNumber();
-    user.validationNumberExpiresAt = Date.now() + 10 * 60 * 1000;
-
-    await user.save({ validateBeforeSave: false });
-
-    try {
-        const message = `
-            <h1>Email Validation Request</h1>
-            <p>Use this number to validate your account: ${validationNumber}</p>
-            <p>This link will expire in 10 minutes.</p>
-        `;
-
-        await sendEmail({
-            email: user.email,
-            subject: 'Account Validation Number',
-            html: message,
-        });
-
-        res.status(200).json({
-            status: 'success',
-            message: 'Account validation number sent to user email.',
-        });
-    } catch (err) {
-        user.encryptedValidationNumber = undefined;
-        user.validationNumberExpiresAt = undefined;
-        await user.save({ validateBeforeSave: false });
-        return next(new CustomErr('Error sending validation email. Please try again later.', 500));
-    }
+    // Stop here for debugging
+    return res.status(200).json({
+        status: "success",
+        message: "Email logged successfully. Validation email not sent (DEBUG MODE).",
+        emailReceived: email
+    });
 });
 
 // ============================
