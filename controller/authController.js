@@ -34,13 +34,14 @@ exports.githubLogin = (req, res) => {
 };
 
 
-exports.githubCallback = async (req, res, next) => {
 
+
+exports.githubCallback = async (req, res, next) => {
   try {
     const code = req.query.code;
     if (!code) return next(new CustomErr('Authorization code missing', 400));
 
-    // 1️⃣ Exchange code for access token
+    // Exchange code for access token
     const tokenResponse = await axios.post(
       'https://github.com/login/oauth/access_token',
       {
@@ -55,7 +56,7 @@ exports.githubCallback = async (req, res, next) => {
     const accessToken = tokenResponse.data.access_token;
     if (!accessToken) return next(new CustomErr('Failed to get access token', 400));
 
-    // 2️⃣ Fetch user info from GitHub
+    // Fetch user info
     const userResponse = await axios.get('https://api.github.com/user', {
       headers: { Authorization: `token ${accessToken}` },
     });
@@ -67,19 +68,10 @@ exports.githubCallback = async (req, res, next) => {
     const emails = emailResponse.data;
     const primaryEmailObj = emails.find(email => email.primary) || emails[0];
     const email = primaryEmailObj?.email;
-
     if (!email) return next(new CustomErr('Email not found from GitHub', 400));
 
-
-
-
-
-    // 3️⃣ Find or create user in DB
+    // Find or create user in DB
     let user = await User.findOne({ email });
-
-
-
-
     if (!user) {
       user = await User.create({
         name: userResponse.data.name || userResponse.data.login,
@@ -91,40 +83,48 @@ exports.githubCallback = async (req, res, next) => {
       });
     }
 
-    console.log('✅ GitHub login successful for:', email);
-
-
-
-    // 4️⃣ Create JWTs & cookies
-    // await createSendResponse(user, 200, res);
-// ...
-
- const token = signToken(user._id);
+    // Create JWTs (no cookies needed)
+    const token = signToken(user._id);
     const refreshToken = signRefreshToken(user._id);
 
     await RefreshToken.createRefreshToken(user._id, refreshToken);
 
-    const accessCookieOptions = buildCookieOptions('access');
-    const refreshCookieOptions = buildCookieOptions('refresh');
+    // Send HTML page with postMessage
+    const frontendOrigin = process.env.FRONTEND_URL; // e.g., https://yourfrontend.com
+    const html = `
+      <!doctype html>
+      <html>
+        <head><meta charset="utf-8"><title>OAuth Success</title></head>
+        <body>
+          <h1>Login Successful!</h1>
+          <h2>Token: ${token}</h2> <!-- just for testing -->
+          <p>Please click the button below to return to the app.</p>
+          <button id="sendToken">Return to App</button>
+          <script>
+            const btn = document.getElementById('sendToken');
+            btn.onclick = function() {
+              const payload = {
+                type: 'OAUTH_SUCCESS',
+                token: ${JSON.stringify(token)},
+                refreshToken: ${JSON.stringify(refreshToken)}
+              };
+              if (window.opener) {
+                window.opener.postMessage(payload, ${JSON.stringify(frontendOrigin)});
+              }
+              window.close();
+            };
+          </script>
+        </body>
+      </html>
+    `;
+    res.send(html);
 
-    res.cookie('jwt', token, accessCookieOptions);
-    res.cookie('refreshToken', refreshToken, refreshCookieOptions);
-
-
-    // ...
-    // 5️⃣ Redirect to your frontend success page
-    return res.redirect(`${process.env.FRONTEND_URL}/oauth-success`);
   } catch (err) {
     console.error('❌ GitHub login error:', err);
     next(new CustomErr('Failed to authenticate with GitHub', 500));
-
-
-
-
-
-
   }
 };
+
 
 // Token-based GitHub login (exchange token for user info and login)
 exports.githubTokenLogin = async (req, res, next) => {
