@@ -2,24 +2,32 @@ const nodemailer = require('nodemailer');
 
 const sendEmail = async (option) => {
   try {
-    // Create transporter
+    // Create transporter with SSL and TLS options
     const transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST,
-      port: Number(process.env.EMAIL_PORT),
-      secure: process.env.EMAIL_PORT == 465, // true for port 465, false for 587
+      host: process.env.EMAIL_HOST, // smtp.gmail.com
+      port: Number(process.env.EMAIL_PORT), // 465
+      secure: true, // SSL
       auth: {
         user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
+        pass: process.env.EMAIL_PASSWORD, // Gmail App Password
       },
+      tls: {
+        rejectUnauthorized: false, // needed on some cloud servers
+      },
+      connectionTimeout: 15000, // 15 seconds
     });
+
+    // Verify SMTP connection before sending
+    await transporter.verify();
+    console.log('SMTP connection verified');
 
     // Email options
     const emailOption = {
-      from: 'KoloTemari team <KoolooTemari@gmail.com>', // fixed the < >
+      from: `KoloTemari team <${process.env.EMAIL_USER}>`,
       to: option.email,
       subject: option.subject,
-      text: option.message,
-      html: option.html,
+      text: option.message || '', // plain text fallback
+      html: option.html || '',     // your HTML content
     };
 
     // Send email
