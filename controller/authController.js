@@ -33,11 +33,18 @@ exports.githubLogin = (req, res) => {
   res.redirect(`https://github.com/login/oauth/authorize?${params.toString()}`);
 };
 
-
 exports.githubCallback = async (req, res, next) => {
+  const frontendOrigin = process.env.FRONTEND_URL || 'http://localhost:3000';
+
   try {
     const code = req.query.code;
-    if (!code) return next(new CustomErr('Authorization code missing', 400));
+
+    if (!code) {
+      // Redirect to frontend error page instead of sending JSON
+      return res.redirect(
+        `${frontendOrigin}/oauth-error?message=${encodeURIComponent('Authorization code missing or invalid')}`
+      );
+    }
 
     // 1️⃣ Exchange code for access token
     const tokenResponse = await axios.post(
@@ -52,7 +59,11 @@ exports.githubCallback = async (req, res, next) => {
     );
 
     const accessToken = tokenResponse.data.access_token;
-    if (!accessToken) return next(new CustomErr('Failed to get access token', 400));
+    if (!accessToken) {
+      return res.redirect(
+        `${frontendOrigin}/oauth-error?message=${encodeURIComponent('Failed to get access token from GitHub')}`
+      );
+    }
 
     // 2️⃣ Fetch user info from GitHub
     const userResponse = await axios.get('https://api.github.com/user', {
@@ -66,7 +77,12 @@ exports.githubCallback = async (req, res, next) => {
     const emails = emailResponse.data;
     const primaryEmailObj = emails.find(email => email.primary) || emails[0];
     const email = primaryEmailObj?.email;
-    if (!email) return next(new CustomErr('Email not found from GitHub', 400));
+
+    if (!email) {
+      return res.redirect(
+        `${frontendOrigin}/oauth-error?message=${encodeURIComponent('Email not found from GitHub')}`
+      );
+    }
 
     // 3️⃣ Find or create user in DB
     let user = await User.findOne({ email });
@@ -94,15 +110,17 @@ exports.githubCallback = async (req, res, next) => {
     res.cookie('jwt', token, accessCookieOptions);
     res.cookie('refreshToken', refreshToken, refreshCookieOptions);
 
-    // 5️⃣ Redirect to frontend /oauth-success with tokens as query params
-    const frontendOrigin = process.env.FRONTEND_URL; // e.g., http://localhost:3000
+    // 5️⃣ Redirect to frontend success page with tokens
     return res.redirect(
       `${frontendOrigin}/oauth-success?token=${encodeURIComponent(token)}&refreshToken=${encodeURIComponent(refreshToken)}`
     );
-
   } catch (err) {
     console.error('❌ GitHub login error:', err);
-    next(new CustomErr('Failed to authenticate with GitHub', 500));
+
+    // Redirect to frontend error page on any error
+    return res.redirect(
+      `${frontendOrigin}/oauth-error?message=${encodeURIComponent('Failed to authenticate with GitHub')}`
+    );
   }
 };
 
