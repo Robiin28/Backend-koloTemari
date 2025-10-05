@@ -42,22 +42,22 @@ app.use(cors({
 // ----------------------------
 // Session & Passport
 // ----------------------------
-app.set('trust proxy', 1); // important if deployed behind HTTPS proxy
+// app.set('trust proxy', 1); // important if deployed behind HTTPS proxy
 
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'your-session-secret',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'none', // cross-domain cookies
-    maxAge: 24 * 60 * 60 * 1000,
-  },
-}));
+// app.use(session({
+//   secret: process.env.SESSION_SECRET || 'your-session-secret',
+//   resave: false,
+//   saveUninitialized: false,
+//   cookie: {
+//     httpOnly: true,
+//     secure: process.env.NODE_ENV === 'production',
+//     sameSite: 'none', // cross-domain cookies
+//     maxAge: 24 * 60 * 60 * 1000,
+//   },
+// }));
 
 app.use(passport.initialize());
-app.use(passport.session());
+// app.use(passport.session());
 
 // ----------------------------
 // Middleware
@@ -92,9 +92,9 @@ app.use('/api/cart', cartRouter);
 // ----------------------------
 // /session fallback route for GitHub OAuth errors
 // ----------------------------
-app.get('/session', (req, res) => {
-  res.redirect('/oauth-error'); // redirect failed OAuth logins here
-});
+// app.get('/session', (req, res) => {
+//   res.redirect('/oauth-error'); // redirect failed OAuth logins here
+// });
 
 // ----------------------------
 // Handle undefined routes
