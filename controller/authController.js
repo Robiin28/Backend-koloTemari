@@ -132,8 +132,30 @@ exports.githubTokenLogin = async (req, res, next) => {
     }
 
     console.log('✅ GitHub token login successful for:', email);
+// removing json
+    // await createSendResponse(user, 200, res);
+     const token = signToken(user._id);
+    const refreshToken = signRefreshToken(user._id);
 
-    await createSendResponse(user, 200, res);
+    // Save refresh token in the database (await important)
+    // Assumes RefreshToken model has createRefreshToken(userId, token) method
+    await RefreshToken.createRefreshToken(user._id, refreshToken);
+
+    // cookie options for access token and refresh token
+    const accessCookieOptions = buildCookieOptions('access');
+    const refreshCookieOptions = buildCookieOptions('refresh'nd
+
+    // if ACCESS_EXPIRES_SEC is 0 or missing, don't set maxAge (let cookie default session)
+    if (accessCookieOptions.maxAge === undefined) delete accessCookieOptions.maxAge;
+    if (refreshCookieOptions.maxAge === undefined) delete refreshCookieOptions.maxAge;
+
+    res.cookie('jwt', token, accessCookieOptions);
+    res.cookie('refreshToken', refreshToken, refreshCookieOptions);
+
+    // Remove password from output
+    user.password = undefined;
+
+    // ...emd
   } catch (error) {
     console.error('❌ GitHub token login error:', error);
     next(new CustomErr('Failed to authenticate with GitHub token', 500));
