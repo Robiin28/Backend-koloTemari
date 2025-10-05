@@ -38,8 +38,8 @@ exports.githubCallback = async (req, res, next) => {
   try {
     const { code, error, error_description } = req.query;
 
+    // Handle OAuth error from GitHub
     if (error) {
-      // Redirect to frontend signin or error page with error info
       const redirectUrl = `/signin?error=${encodeURIComponent(error_description || error)}`;
       return res.redirect(redirectUrl);
     }
@@ -102,7 +102,7 @@ exports.githubCallback = async (req, res, next) => {
     const refreshToken = signRefreshToken(user._id);
     await RefreshToken.createRefreshToken(user._id, refreshToken);
 
-    // 5️⃣ Set cookies (optional, frontend uses query params)
+    // 5️⃣ Set cookies (optional, frontend can use query params)
     const accessCookieOptions = buildCookieOptions('access');
     const refreshCookieOptions = buildCookieOptions('refresh');
     res.cookie('jwt', token, accessCookieOptions);
@@ -110,16 +110,16 @@ exports.githubCallback = async (req, res, next) => {
 
     // 6️⃣ Redirect to frontend OAuth success page with tokens in query
     const frontendOrigin = process.env.FRONTEND_URL; // e.g., http://localhost:3000
-    return res.redirect(
-      `${frontendOrigin}/oauth-success?token=${encodeURIComponent(token)}&refreshToken=${encodeURIComponent(refreshToken)}`
-    );
+    const redirectUrl = `${frontendOrigin}/oauth-success?token=${encodeURIComponent(token)}&refreshToken=${encodeURIComponent(refreshToken)}`;
+    
+    console.log('Redirecting to frontend with tokens:', redirectUrl); // For debugging
+    return res.redirect(redirectUrl);
 
   } catch (err) {
     console.error('❌ GitHub login error:', err);
     next(new CustomErr('Failed to authenticate with GitHub', 500));
   }
 };
-
 
 
 
