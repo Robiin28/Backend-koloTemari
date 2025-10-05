@@ -5,6 +5,8 @@ const passport = require('passport');
 
 const router = express.Router();
 
+const FRONTEND_URL = process.env.FRONTEND_URL;
+
 // --------------------
 // Public routes
 // --------------------
@@ -12,22 +14,32 @@ router.post('/validate', authController.validateEmail);
 router.get('/google', authController.googleLogin);
 router.get('/google/callback', authController.googleCallback);
 
-// GitHub OAuth
+// --------------------
+// GitHub OAuth --------------------
+router.get(
+  '/github',
+  passport.authenticate('github', { scope: ['user:email'] })
+);
 
+router.get(
+  '/github/callback',
+  passport.authenticate('github', {
+    failureRedirect: `${FRONTEND_URL}/oauth-error`,
+    session: true, // keep session if needed
+  }),
+  (req, res) => {
+    // Successful login, redirect to frontend success page
+    res.redirect(`${FRONTEND_URL}/oauth-success`);
+  }
+);
 
-router.get('/github', passport.authenticate('github', { scope: ['user:email'] }));
-
-router.get('/git/callback', passport.authenticate('github', {
-  successRedirect: process.env.FRONTEND_URL + '/oauth-success',
-  failureRedirect: process.env.FRONTEND_URL + '/oauth-error'
-}));
-
-// New POST route for token-based GitHub login
+// --------------------
+// Token-based login routes --------------------
 router.post('/github/token-login', authController.githubTokenLogin);
-
-// New POST route for token-based Google login
 router.post('/google/token-login', authController.googleTokenLogin);
 
+// --------------------
+// Other auth routes --------------------
 router.post('/validateNow', authController.validateNow);
 router.post('/login', authController.login);
 router.post('/signup', authController.signup);
@@ -38,8 +50,7 @@ router.post('/refresh-token', authController.refreshToken);
 router.get('/users/:role', userController.getUsersByRole);
 
 // --------------------
-// Protected routes
-// --------------------
+// Protected routes --------------------
 router.use(authController.protect);
 
 router.get('/check', authController.checkAuth);
