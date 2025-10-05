@@ -23,8 +23,7 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 // 1️⃣ GitHub OAuth login (redirect user to GitHub)
 // -----------------------------
 exports.githubLogin = passport.authenticate('github', {
-  scope: ['user:email'],
-  session: false,
+  scope: ['user','email']
 });
 
 // -----------------------------
