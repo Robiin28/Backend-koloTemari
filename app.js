@@ -53,6 +53,10 @@ app.use(session({
     maxAge: 24 * 60 * 60 * 1000, // optional, 1 day
   },
 }));
+// 3️⃣ Initialize Passport AFTER session middleware
+app.use(passport.initialize());
+app.use(passport.session());
+
 // ----------------------------
 // Middleware
 // ----------------------------
