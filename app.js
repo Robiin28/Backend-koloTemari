@@ -66,21 +66,21 @@ app.use(morgan('dev'));
 app.use(express.static('./public'));
 
 // Setup session middleware for passport
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'your-session-secret',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-     httpOnly: true, // safer, prevents JS access
-     sameSite: 'none',
-    // your cookie config options here
-  },
-}));
+// app.use(session({
+//   secret: process.env.SESSION_SECRET || 'your-session-secret',
+//   resave: false,
+//   saveUninitialized: false,
+//   cookie: {
+//     secure: process.env.NODE_ENV === 'production',
+//      httpOnly: true, // safer, prevents JS access
+//      sameSite: 'none',
+//     // your cookie config options here
+//   },
+// }));
 
-// Initialize Passport and use passport sessions
-app.use(passport.initialize());
-app.use(passport.session());
+// // Initialize Passport and use passport sessions
+// app.use(passport.initialize());
+// app.use(passport.session());
 
 // Custom Middleware: request timestamp
 app.use((req, res, next) => {
