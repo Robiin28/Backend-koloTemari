@@ -31,12 +31,19 @@ exports.githubLogin = (req, res) => {
   });
 
   res.redirect(`https://github.com/login/oauth/authorize?${params.toString()}`);
-};exports.githubCallback = async (req, res, next) => {
+};
+exports.githubCallback = async (req, res, next) => {
   try {
-    const code = req.query.code;
+    const { code, error, error_description } = req.query;
+
+    if (error) {
+      // Redirect to your frontend signin or error page with error info
+      const redirectUrl = `/signin?error=${encodeURIComponent(error_description || error)}`;
+      return res.redirect(redirectUrl);
+    }
+
     if (!code) {
-      // Instead of redirecting, throw error or just end
-      return res.status(400).send('GitHub authorization failed'); // minimal handling
+      return res.status(400).send('GitHub authorization failed: missing code parameter');
     }
 
     // Exchange code for token
@@ -73,7 +80,6 @@ exports.githubLogin = (req, res) => {
       return res.status(400).send('Email not found from GitHub');
     }
 
-    // You can still create or find user in DB here
     let user = await User.findOne({ email });
     if (!user) {
       user = await User.create({
@@ -86,16 +92,14 @@ exports.githubLogin = (req, res) => {
       });
     }
 
-    // Send tokens as JSON if needed, or skip and let frontend handle it
-    res.status(200).json({ message: 'GitHub login successful', email });
-
+    // Send your own JWT tokens and user data as JSON (or redirect as per your UX)
+    await createSendResponse(user, 200, res);
   } catch (err) {
     console.error('GitHub callback error:', err);
-    // Just respond minimally so GitHub can show its own error
-    res.status(500).send('GitHub login failed');
+    // On internal server errors, redirect user or respond accordingly
+    res.status(500).send('GitHub login failed due to server error');
   }
 };
-
 
 
 // Token-based GitHub login (exchange token for user info and login)
