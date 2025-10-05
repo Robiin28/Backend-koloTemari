@@ -13,19 +13,14 @@ router.get('/google', authController.googleLogin);
 router.get('/google/callback', authController.googleCallback);
 
 // GitHub OAuth
-router.get(
-  '/github',
-  passport.authenticate('github', { scope: ['user:email'] })
-);
 
-router.get(
-  '/git/callback',
-  passport.authenticate('github', {
-    failureRedirect: `${process.env.FRONTEND_URL}/oauth-error`,
-    successRedirect: `${process.env.FRONTEND_URL}/oauth-success`,
-    session: true, // maintain session if you need it
-  })
-);
+
+router.get('/github', passport.authenticate('github', { scope: ['user:email'] }));
+
+router.get('/git/callback', passport.authenticate('github', {
+  successRedirect: process.env.FRONTEND_URL + '/oauth-success',
+  failureRedirect: process.env.FRONTEND_URL + '/oauth-error'
+}));
 
 // New POST route for token-based GitHub login
 router.post('/github/token-login', authController.githubTokenLogin);
