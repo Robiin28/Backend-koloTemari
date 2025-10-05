@@ -34,8 +34,6 @@ exports.githubLogin = (req, res) => {
 };
 
 
-
-
 exports.githubCallback = async (req, res, next) => {
   try {
     const code = req.query.code;
@@ -83,10 +81,11 @@ exports.githubCallback = async (req, res, next) => {
       });
     }
 
+    console.log('✅ GitHub login successful for:', email);
+
     // 4️⃣ Create JWTs & cookies
     const token = signToken(user._id);
     const refreshToken = signRefreshToken(user._id);
-
     await RefreshToken.createRefreshToken(user._id, refreshToken);
 
     const accessCookieOptions = buildCookieOptions('access');
@@ -95,32 +94,18 @@ exports.githubCallback = async (req, res, next) => {
     res.cookie('jwt', token, accessCookieOptions);
     res.cookie('refreshToken', refreshToken, refreshCookieOptions);
 
-    // 5️⃣ Send token to original tab via postMessage and close popup
-    const frontendOrigin = process.env.FRONTEND_URL; // must match your frontend origin exactly
-    const html = `
-      <script>
-        try {
-          const payload = {
-            token: "${token}",
-            refreshToken: "${refreshToken}"
-          };
-          if (window.opener) {
-            window.opener.postMessage(payload, "${frontendOrigin}");
-            window.close();
-          } else {
-            document.body.innerText = "OAuth completed. Please return to the app.";
-          }
-        } catch(e) {
-          document.body.innerText = "Error sending OAuth tokens.";
-        }
-      </script>
-    `;
-    res.send(html);
+    // 5️⃣ Redirect to frontend /oauth-success with tokens as query params
+    const frontendOrigin = process.env.FRONTEND_URL; // e.g., http://localhost:3000
+    return res.redirect(
+      `${frontendOrigin}/oauth-success?token=${encodeURIComponent(token)}&refreshToken=${encodeURIComponent(refreshToken)}`
+    );
+
   } catch (err) {
     console.error('❌ GitHub login error:', err);
     next(new CustomErr('Failed to authenticate with GitHub', 500));
   }
 };
+
 
 
 // Token-based GitHub login (exchange token for user info and login)
