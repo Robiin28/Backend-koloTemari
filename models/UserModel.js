@@ -61,11 +61,15 @@ userSchema.pre('save', async function (next) {
 });
 
 // Only find active users
+
 userSchema.pre(/^find/, function (next) {
-    this.where({ active: true });
+    if (!this.getQuery().ignoreActiveFilter) {
+        this.where({ active: true });
+    } else {
+        delete this.getQuery().ignoreActiveFilter; // remove custom flag
+    }
     next();
 });
-
 // Compare password with hashed password in DB
 userSchema.methods.comparePasswordInDb = async function (pswd, pswdDb) {
     return await bcrypt.compare(pswd, pswdDb);
