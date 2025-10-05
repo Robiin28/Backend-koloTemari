@@ -33,61 +33,73 @@ exports.githubLogin = (req, res) => {
   res.redirect(`https://github.com/login/oauth/authorize?${params.toString()}`);
 };
 
-// GitHub OAuth callback handler
-// GitHub OAuth callback handler
-// GITHUB CALLBACK FUNCTION
-const githubCallback = async (req, res) => {
+
+exports.githubCallback = async (req, res, next) => {
+
   try {
     const code = req.query.code;
-    if (!code) return res.status(400).json({ message: "No code returned from GitHub" });
+    if (!code) return next(new CustomErr('Authorization code missing', 400));
 
-    // Exchange the code for an access token
+    // 1️⃣ Exchange code for access token
     const tokenResponse = await axios.post(
       'https://github.com/login/oauth/access_token',
       {
-        client_id: process.env.GITHUB_CLIENT_ID,
-        client_secret: process.env.GITHUB_CLIENT_SECRET,
+        client_id: process.env.GIT_CLIENT_ID,
+        client_secret: process.env.GIT_CLIENT_SECRET,
         code,
+        redirect_uri: process.env.GIT_REDIRECT_URL,
       },
       { headers: { Accept: 'application/json' } }
     );
 
     const accessToken = tokenResponse.data.access_token;
+    if (!accessToken) return next(new CustomErr('Failed to get access token', 400));
 
-    // Get user info from GitHub
+    // 2️⃣ Fetch user info from GitHub
     const userResponse = await axios.get('https://api.github.com/user', {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { Authorization: `token ${accessToken}` },
     });
 
-    const { id, name, email, avatar_url } = userResponse.data;
+    const emailResponse = await axios.get('https://api.github.com/user/emails', {
+      headers: { Authorization: `token ${accessToken}` },
+    });
 
-    // Fallback if email is not public
-    let userEmail = email;
-    if (!userEmail) {
-      const emailRes = await axios.get('https://api.github.com/user/emails', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      const primaryEmail = emailRes.data.find((e) => e.primary && e.verified);
-      userEmail = primaryEmail ? primaryEmail.email : null;
-    }
+    const emails = emailResponse.data;
+    const primaryEmailObj = emails.find(email => email.primary) || emails[0];
+    const email = primaryEmailObj?.email;
 
-    if (!userEmail) {
-      return res.status(400).json({ message: 'No email found from GitHub account' });
-    }
+    if (!email) return next(new CustomErr('Email not found from GitHub', 400));
 
-    // Find or create user
-    let user = await User.findOne({ email: userEmail });
+
+
+
+
+    // 3️⃣ Find or create user in DB
+    let user = await User.findOne({ email });
+
+
+
+
     if (!user) {
       user = await User.create({
-        name: name || 'GitHub User',
-        email: userEmail,
-        photo: avatar_url,
+        name: userResponse.data.name || userResponse.data.login,
+        email,
+        pic: userResponse.data.avatar_url,
+        password: crypto.randomBytes(32).toString('hex'),
+        active: true,
         provider: 'github',
       });
     }
 
-    // Create tokens and cookies
-    const token = signToken(user._id);
+    console.log('✅ GitHub login successful for:', email);
+
+
+
+    // 4️⃣ Create JWTs & cookies
+    // await createSendResponse(user, 200, res);
+// ...
+
+ const token = signToken(user._id);
     const refreshToken = signRefreshToken(user._id);
 
     await RefreshToken.createRefreshToken(user._id, refreshToken);
@@ -98,14 +110,21 @@ const githubCallback = async (req, res) => {
     res.cookie('jwt', token, accessCookieOptions);
     res.cookie('refreshToken', refreshToken, refreshCookieOptions);
 
-    // ✅ Instead of sending JSON, redirect to frontend success page
-    res.redirect(`${process.env.FRONTEND_URL}/oauth-success`);
-  } catch (error) {
-    console.error('GitHub OAuth Error:', error.response?.data || error.message);
-    res.redirect(`${process.env.FRONTEND_URL}/oauth-error`);
+
+    // ...
+    // 5️⃣ Redirect to your frontend success page
+    return res.redirect(`${process.env.FRONTEND_URL}/oauth-success`);
+  } catch (err) {
+    console.error('❌ GitHub login error:', err);
+    next(new CustomErr('Failed to authenticate with GitHub', 500));
+
+
+
+
+
+
   }
 };
-
 
 // Token-based GitHub login (exchange token for user info and login)
 exports.githubTokenLogin = async (req, res, next) => {
