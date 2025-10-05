@@ -34,12 +34,13 @@ exports.githubLogin = (req, res) => {
 };
 
 // GitHub OAuth callback handler
+// GitHub OAuth callback handler
 exports.githubCallback = async (req, res, next) => {
   try {
     const code = req.query.code;
     if (!code) return next(new CustomErr('Authorization code missing', 400));
 
-    // Exchange code for access token
+    // 1️⃣ Exchange code for access token
     const tokenResponse = await axios.post(
       'https://github.com/login/oauth/access_token',
       {
@@ -48,15 +49,13 @@ exports.githubCallback = async (req, res, next) => {
         code,
         redirect_uri: process.env.GIT_REDIRECT_URL,
       },
-      {
-        headers: { Accept: 'application/json' },
-      }
+      { headers: { Accept: 'application/json' } }
     );
 
     const accessToken = tokenResponse.data.access_token;
     if (!accessToken) return next(new CustomErr('Failed to get access token', 400));
 
-    // Fetch user info
+    // 2️⃣ Fetch user info from GitHub
     const userResponse = await axios.get('https://api.github.com/user', {
       headers: { Authorization: `token ${accessToken}` },
     });
@@ -71,6 +70,7 @@ exports.githubCallback = async (req, res, next) => {
 
     if (!email) return next(new CustomErr('Email not found from GitHub', 400));
 
+    // 3️⃣ Find or create user in DB
     let user = await User.findOne({ email });
 
     if (!user) {
@@ -86,12 +86,17 @@ exports.githubCallback = async (req, res, next) => {
 
     console.log('✅ GitHub login successful for:', email);
 
+    // 4️⃣ Create JWTs & cookies
     await createSendResponse(user, 200, res);
+
+    // 5️⃣ Redirect to your frontend success page
+    return res.redirect(`${process.env.FRONTEND_URL}/oauth-success`);
   } catch (err) {
     console.error('❌ GitHub login error:', err);
     next(new CustomErr('Failed to authenticate with GitHub', 500));
   }
 };
+
 
 // Token-based GitHub login (exchange token for user info and login)
 exports.githubTokenLogin = async (req, res, next) => {
