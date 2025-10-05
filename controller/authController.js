@@ -35,65 +35,74 @@ exports.githubLogin = (req, res) => {
 
 // GitHub OAuth callback handler
 // GitHub OAuth callback handler
-exports.githubCallback = async (req, res, next) => {
+// GITHUB CALLBACK FUNCTION
+const githubCallback = async (req, res) => {
   try {
     const code = req.query.code;
-    if (!code) return next(new CustomErr('Authorization code missing', 400));
+    if (!code) return res.status(400).json({ message: "No code returned from GitHub" });
 
-    // 1️⃣ Exchange code for access token
+    // Exchange the code for an access token
     const tokenResponse = await axios.post(
       'https://github.com/login/oauth/access_token',
       {
-        client_id: process.env.GIT_CLIENT_ID,
-        client_secret: process.env.GIT_CLIENT_SECRET,
+        client_id: process.env.GITHUB_CLIENT_ID,
+        client_secret: process.env.GITHUB_CLIENT_SECRET,
         code,
-        redirect_uri: process.env.GIT_REDIRECT_URL,
       },
       { headers: { Accept: 'application/json' } }
     );
 
     const accessToken = tokenResponse.data.access_token;
-    if (!accessToken) return next(new CustomErr('Failed to get access token', 400));
 
-    // 2️⃣ Fetch user info from GitHub
+    // Get user info from GitHub
     const userResponse = await axios.get('https://api.github.com/user', {
-      headers: { Authorization: `token ${accessToken}` },
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
 
-    const emailResponse = await axios.get('https://api.github.com/user/emails', {
-      headers: { Authorization: `token ${accessToken}` },
-    });
+    const { id, name, email, avatar_url } = userResponse.data;
 
-    const emails = emailResponse.data;
-    const primaryEmailObj = emails.find(email => email.primary) || emails[0];
-    const email = primaryEmailObj?.email;
+    // Fallback if email is not public
+    let userEmail = email;
+    if (!userEmail) {
+      const emailRes = await axios.get('https://api.github.com/user/emails', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const primaryEmail = emailRes.data.find((e) => e.primary && e.verified);
+      userEmail = primaryEmail ? primaryEmail.email : null;
+    }
 
-    if (!email) return next(new CustomErr('Email not found from GitHub', 400));
+    if (!userEmail) {
+      return res.status(400).json({ message: 'No email found from GitHub account' });
+    }
 
-    // 3️⃣ Find or create user in DB
-    let user = await User.findOne({ email });
-
+    // Find or create user
+    let user = await User.findOne({ email: userEmail });
     if (!user) {
       user = await User.create({
-        name: userResponse.data.name || userResponse.data.login,
-        email,
-        pic: userResponse.data.avatar_url,
-        password: crypto.randomBytes(32).toString('hex'),
-        active: true,
+        name: name || 'GitHub User',
+        email: userEmail,
+        photo: avatar_url,
         provider: 'github',
       });
     }
 
-    console.log('✅ GitHub login successful for:', email);
+    // Create tokens and cookies
+    const token = signToken(user._id);
+    const refreshToken = signRefreshToken(user._id);
 
-    // 4️⃣ Create JWTs & cookies
-    await createSendResponse(user, 200, res);
+    await RefreshToken.createRefreshToken(user._id, refreshToken);
 
-    // 5️⃣ Redirect to your frontend success page
-    return res.redirect(`${process.env.FRONTEND_URL}/oauth-success`);
-  } catch (err) {
-    console.error('❌ GitHub login error:', err);
-    next(new CustomErr('Failed to authenticate with GitHub', 500));
+    const accessCookieOptions = buildCookieOptions('access');
+    const refreshCookieOptions = buildCookieOptions('refresh');
+
+    res.cookie('jwt', token, accessCookieOptions);
+    res.cookie('refreshToken', refreshToken, refreshCookieOptions);
+
+    // ✅ Instead of sending JSON, redirect to frontend success page
+    res.redirect(`${process.env.FRONTEND_URL}/oauth-success`);
+  } catch (error) {
+    console.error('GitHub OAuth Error:', error.response?.data || error.message);
+    res.redirect(`${process.env.FRONTEND_URL}/oauth-error`);
   }
 };
 
