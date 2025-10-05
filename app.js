@@ -4,7 +4,7 @@ const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const session = require('express-session');
 const passport = require('passport');
-const router = express.Router();
+
 const authRouter = require('./routes/authRouter');
 const courseRouter = require('./routes/courseRoute');
 const lessonRouter = require('./routes/lessonRoute');
@@ -20,7 +20,7 @@ const cartRouter = require('./routes/cartRouter');
 const globalErrorHandler = require('./controller/errController');
 const CustomErr = require('./utils/CustomErr');
 
-require('./utils/passport'); // Your passport configuration file that sets up strategies
+require('./utils/passport'); // Passport strategies
 
 const app = express();
 
@@ -36,26 +36,28 @@ app.use(cors({
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true, // Allow cookies
+  credentials: true,
 }));
-// 
-// 
-// app.set('trust proxy', 1); // <--- add this above session (important for Render HTTPS)
 
-// app.use(session({
-//   secret: process.env.SESSION_SECRET || 'your-session-secret',
-//   resave: false,
-//   saveUninitialized: false,
-//   cookie: {
-//     httpOnly: true,
-//     secure: process.env.NODE_ENV === 'production', // true on Render
-//     sameSite: 'none', // critical for cross-domain + mobile
-//     maxAge: 24 * 60 * 60 * 1000, // optional, 1 day
-//   },
-// }));
-// // 3️⃣ Initialize Passport AFTER session middleware
-// app.use(passport.initialize());
-// app.use(passport.session());
+// ----------------------------
+// Session & Passport
+// ----------------------------
+app.set('trust proxy', 1); // important if deployed behind HTTPS proxy
+
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-session-secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'none', // cross-domain cookies
+    maxAge: 24 * 60 * 60 * 1000,
+  },
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
 
 // ----------------------------
 // Middleware
@@ -64,23 +66,6 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(morgan('dev'));
 app.use(express.static('./public'));
-
-// Setup session middleware for passport
-// app.use(session({
-//   secret: process.env.SESSION_SECRET || 'your-session-secret',
-//   resave: false,
-//   saveUninitialized: false,
-//   cookie: {
-//     secure: process.env.NODE_ENV === 'production',
-//      httpOnly: true, // safer, prevents JS access
-//      sameSite: 'none',
-//     // your cookie config options here
-//   },
-// }));
-
-// // Initialize Passport and use passport sessions
-// app.use(passport.initialize());
-// app.use(passport.session());
 
 // Custom Middleware: request timestamp
 app.use((req, res, next) => {
@@ -104,9 +89,14 @@ app.use('/api/course/:courseId/section', sectionRouter);
 app.use('/api/course/lesson/:lessonId/quiz', quizRouter);
 app.use('/api/cart', cartRouter);
 
-router.get('/session', (req, res) => {
-  res.redirect('/api/auth/signin');
-});-------------------------
+// ----------------------------
+// /session fallback route for GitHub OAuth errors
+// ----------------------------
+app.get('/session', (req, res) => {
+  res.redirect('/oauth-error'); // redirect failed OAuth logins here
+});
+
+// ----------------------------
 // Handle undefined routes
 // ----------------------------
 app.all('*', (req, res, next) => {
