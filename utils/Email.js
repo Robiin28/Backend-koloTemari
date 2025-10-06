@@ -1,40 +1,53 @@
 // utils/Email.js
-const Mailjet = require('node-mailjet');
+const nodemailer = require('nodemailer');
+const { google } = require('googleapis');
 
-if (!process.env.MAILJET_API_KEY || !process.env.MAILJET_API_SECRET) {
-  throw new Error('MAILJET_API_KEY or MAILJET_API_SECRET is missing in environment variables');
-}
+const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'https://developers.google.com/oauthplayground';
+const REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
 
-// ✅ Correct way to initialize (works in all versions)
-const mailjet = Mailjet.apiConnect
-  ? Mailjet.apiConnect(process.env.MAILJET_API_KEY, process.env.MAILJET_API_SECRET)
-  : Mailjet.connect(process.env.MAILJET_API_KEY, process.env.MAILJET_API_SECRET);
+const oAuth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
+oAuth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
 
-/**
- * Send email via Mailjet
- */
-const sendEmail = async ({ email, subject, html }) => {
-  try {
-    const request = await mailjet
-      .post('send', { version: 'v3.1' })
-      .request({
-        Messages: [
-          {
-            From: {
-              Email: 'koolootemari@gmail.com', // ✅ must be verified
-              Name: 'Kooloo Temari',
-            },
-            To: [{ Email: email }],
-            Subject: subject,
-            HTMLPart: html,
-          },
-        ],
-      });
+const sendEmail = async (options) => {
+    try {
+        // get a fresh access token
+        const accessTokenObj = await oAuth2Client.getAccessToken();
+        const accessToken = accessTokenObj.token;
 
-    console.log('✅ Email sent:', request.body);
-  } catch (error) {
-    console.error('❌ Email sending failed:', error.statusCode || error.message);
-  }
+        if (!accessToken) throw new Error("Failed to generate access token");
+
+        // create transporter
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                type: 'OAuth2',
+                user: process.env.EMAIL_USER, // your Gmail address
+                clientId: CLIENT_ID,
+                clientSecret: CLIENT_SECRET,
+                refreshToken: REFRESH_TOKEN,
+                accessToken: accessToken
+            }
+        });
+
+        // email options
+        const mailOptions = {
+            from: `MineFlix Support Team <${process.env.EMAIL_USER}>`,
+            to: options.email,
+            subject: options.subject,
+            text: options.message,
+            html: options.html
+        };
+
+        const result = await transporter.sendMail(mailOptions);
+        console.log('Email sent successfully! Message ID:', result.messageId);
+        return result;
+    } catch (err) {
+        console.error('Error sending email:', err);
+        throw err;
+    }
 };
 
 module.exports = sendEmail;
+
