@@ -16,7 +16,7 @@ const sendEmail = async ({ email, subject, html }) => {
 
     // Construct raw email with proper MIME headers for HTML
     const rawMessage = [
-      `From: "MineFlix Support Team" <${SENDER_EMAIL}>`,
+      `From: "KolooTemari Support Team" <${SENDER_EMAIL}>`,
       `To: ${email}`,
       `Subject: ${subject}`,
       `Content-Type: text/html; charset="UTF-8"`,
