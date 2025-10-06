@@ -381,26 +381,34 @@ exports.validateEmail = asyncErrorHandler(async (req, res, next) => {
     // Generate validation number
     const validationNumber = user.generateAndEncryptValidationNumber();
     user.validationNumberExpiresAt = Date.now() + 10 * 60 * 1000; // 10 min
-
     await user.save({ validateBeforeSave: false });
 
     try {
-        const message = `
+        const htmlMessage = `
             <h1>Email Validation Request</h1>
             <p>Use this number to validate your account: <b>${validationNumber}</b></p>
             <p>This link will expire in 10 minutes.</p>
         `;
 
-        // Send email
-        await sendEmail({
+        // Send email using Gmail OAuth2
+        const emailResult = await sendEmail({
             email: user.email,
             subject: 'Account Validation Number',
-            html: message,
+            html: htmlMessage,
         });
 
+        // Respond with success AND the validation number for testing
         res.status(200).json({
             status: 'success',
             message: 'Account validation number sent to user email.',
+            data: {
+                email: user.email,
+                validationNumber, // send this only for testing; remove in production
+                emailInfo: {
+                    messageId: emailResult.messageId,
+                    envelope: emailResult.envelope,
+                },
+            },
         });
     } catch (err) {
         // Rollback if email sending fails
