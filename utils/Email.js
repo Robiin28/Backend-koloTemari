@@ -1,5 +1,4 @@
 // utils/Email.js
-const nodemailer = require('nodemailer');
 const { google } = require('googleapis');
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -11,42 +10,42 @@ const SENDER_EMAIL = process.env.EMAIL_USER; // your Gmail address
 const oAuth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET);
 oAuth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
 
-const sendEmail = async ({ email, subject, message, html }) => {
-    try {
-        // Generate fresh access token from refresh token
-        const accessTokenObj = await oAuth2Client.getAccessToken();
-        const accessToken = accessTokenObj.token;
-        if (!accessToken) throw new Error('Failed to generate access token');
+const sendEmail = async ({ email, subject, html }) => {
+  try {
+    const gmail = google.gmail({ version: 'v1', auth: oAuth2Client });
 
-        // Create transporter
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                type: 'OAuth2',
-                user: SENDER_EMAIL,
-                clientId: CLIENT_ID,
-                clientSecret: CLIENT_SECRET,
-                refreshToken: REFRESH_TOKEN,
-                accessToken: accessToken
-            }
-        });
+    // Construct raw email with proper MIME headers for HTML
+    const rawMessage = [
+      `From: "MineFlix Support Team" <${SENDER_EMAIL}>`,
+      `To: ${email}`,
+      `Subject: ${subject}`,
+      `Content-Type: text/html; charset="UTF-8"`,
+      `MIME-Version: 1.0`,
+      '',
+      html
+    ].join('\n');
 
-        // Email options
-        const mailOptions = {
-            from: `MineFlix Support Team <${SENDER_EMAIL}>`,
-            to: email,
-            subject,
-            text: message,
-            html
-        };
+    // Encode message to base64url
+    const encodedMessage = Buffer.from(rawMessage)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
 
-        const result = await transporter.sendMail(mailOptions);
-        console.log('Email sent successfully! Message ID:', result.messageId);
-        return result;
-    } catch (err) {
-        console.error('Error sending email:', err);
-        throw err;
-    }
+    // Send the email
+    const response = await gmail.users.messages.send({
+      userId: 'me',
+      requestBody: {
+        raw: encodedMessage
+      }
+    });
+
+    console.log('✅ Email sent successfully! Message ID:', response.data.id);
+    return response.data;
+  } catch (err) {
+    console.error('❌ Error sending email:', err);
+    throw err;
+  }
 };
 
 module.exports = sendEmail;
