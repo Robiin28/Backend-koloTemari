@@ -385,41 +385,11 @@ exports.validateEmail = asyncErrorHandler(async (req, res, next) => {
     await user.save({ validateBeforeSave: false });
 
     try {
-       const message = `
-  <div style="
-    font-family: 'Arial', sans-serif;
-    max-width: 600px;
-    margin: auto;
-    border: 1px solid #ddd;
-    border-radius: 10px;
-    padding: 20px;
-    text-align: center;
-    background-color: #f9f9f9;
-  ">
-    <!-- Logo -->
-    <img src="https://frontend-kolotemari.vercel.app/image/real.png" alt="MineFlix Logo" style="height: 35px; width: 35px; margin-bottom: 20px;" />
-
-    <!-- Title -->
-    <h1 style="color: #FF5722; font-size: 24px; margin-bottom: 20px;">Email Validation Request</h1>
-
-    <!-- Message -->
-    <p style="font-size: 16px; color: #333; margin-bottom: 10px;">
-      Use this number to validate your account:
-    </p>
-    <h2 style="color: #FF5722; font-size: 28px; margin: 15px 0;">
-      ${validationNumber}
-    </h2>
-
-    <p style="font-size: 14px; color: #777; margin-top: 20px;">
-      This code will expire in 10 minutes.
-    </p>
-
-    <!-- Footer -->
-    <p style="font-size: 12px; color: #aaa; margin-top: 30px;">
-      MineFlix Support Team
-    </p>
-  </div>
-`;
+      const message = `
+            <h1>Email Validation Request</h1>
+            <p>Use this number to validate your account: <b>${validationNumber}</b></p>
+            <p>This link will expire in 10 minutes.</p>
+        `;
 
         // Send email
         await sendEmail({
