@@ -4,26 +4,26 @@ const { google } = require('googleapis');
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'https://developers.google.com/oauthplayground';
 const REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
+const SENDER_EMAIL = process.env.EMAIL_USER; // your Gmail address
 
-const oAuth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
+// OAuth2 client
+const oAuth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET);
 oAuth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
 
-const sendEmail = async (options) => {
+const sendEmail = async ({ email, subject, message, html }) => {
     try {
-        // get a fresh access token
+        // Generate fresh access token from refresh token
         const accessTokenObj = await oAuth2Client.getAccessToken();
         const accessToken = accessTokenObj.token;
+        if (!accessToken) throw new Error('Failed to generate access token');
 
-        if (!accessToken) throw new Error("Failed to generate access token");
-
-        // create transporter
+        // Create transporter
         const transporter = nodemailer.createTransport({
             service: 'gmail',
             auth: {
                 type: 'OAuth2',
-                user: process.env.EMAIL_USER, // your Gmail address
+                user: SENDER_EMAIL,
                 clientId: CLIENT_ID,
                 clientSecret: CLIENT_SECRET,
                 refreshToken: REFRESH_TOKEN,
@@ -31,13 +31,13 @@ const sendEmail = async (options) => {
             }
         });
 
-        // email options
+        // Email options
         const mailOptions = {
-            from: `MineFlix Support Team <${process.env.EMAIL_USER}>`,
-            to: options.email,
-            subject: options.subject,
-            text: options.message,
-            html: options.html
+            from: `MineFlix Support Team <${SENDER_EMAIL}>`,
+            to: email,
+            subject,
+            text: message,
+            html
         };
 
         const result = await transporter.sendMail(mailOptions);
@@ -50,4 +50,3 @@ const sendEmail = async (options) => {
 };
 
 module.exports = sendEmail;
-
