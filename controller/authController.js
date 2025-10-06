@@ -418,7 +418,7 @@ exports.validateEmail = asyncErrorHandler(async (req, res, next) => {
 // ============================
 exports.validateNow = asyncErrorHandler(async (req, res, next) => {
     const { email, validationNumber } = req.body;
-    const user = await User.findOne({ email });
+      const user = await User.findOne({ email, ignoreActiveFilter: true });
 
     if (!user) {
         return next(new CustomErr("Email not found. Please sign up first.", 404));
